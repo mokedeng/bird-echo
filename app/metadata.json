@@ -1,0 +1,7 @@
+{
+  "name": "BirdEcho",
+  "description": "Identify bird songs instantly using AI analysis and your microphone.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
