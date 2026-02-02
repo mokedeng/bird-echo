@@ -25,6 +25,7 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
     "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Cuculus_canorus_1_%28Martin_Mechenich%29.jpg/800px-Cuculus_canorus_1_%28Martin_Mechenich%29.jpg"
   );
   const [isSaved, setIsSaved] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   // Find the detection with highest confidence
   const topMatch = useMemo(() => {
@@ -146,30 +147,63 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
                  const width = ((end - start) / totalDurationSecs) * 100;
                  
                  // Confidence Heatmap Logic:
-                 // Use power curve to map confidence to opacity.
-                 // E.g., 0.99 -> ~1.0, 0.95 -> ~0.8, 0.8 -> ~0.4
-                 const opacity = Math.max(0.3, Math.pow(d.confidence, 5));
+                 // Extreme contrast for 98-100% range.
+                 // 0.98 -> 0.4 opacity
+                 // 0.99 -> 0.9 opacity
+                 // 1.00 -> 1.0 opacity
+                 const opacity = Math.max(0.4, (d.confidence - 0.98) * 50);
+                 const isSelected = selectedIndex === i;
 
                  return (
-                   <div 
+                   <button 
                     key={i}
-                    className="absolute top-0 bottom-0 z-10 rounded-[2px]"
+                    onClick={() => setSelectedIndex(i)}
+                    className={`absolute top-0 bottom-0 z-10 rounded-sm flex items-center justify-center gap-[1px] overflow-hidden transition-transform active:scale-95 ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-[#2bee5b]' : ''}`}
                     style={{ 
                       left: `${left}%`, 
-                      // Subtract 2px to create a physical gap between segments
-                      width: `calc(${width}% - 2px)`,
+                      // Subtract 4px to create a physical gap between segments
+                      width: `calc(${width}% - 4px)`,
                       // Apply opacity to the background color for the heatmap effect
                       backgroundColor: `rgba(43, 238, 91, ${opacity})`
                     }}
-                   />
+                   >
+                     {/* Embedded Waveform Texture */}
+                     {Array.from({ length: 8 }).map((_, idx) => (
+                       <div 
+                         key={idx}
+                         className="w-[2px] bg-black/10 rounded-full"
+                         style={{ 
+                           height: `${20 + Math.random() * 60}%` 
+                         }}
+                       />
+                     ))}
+                   </button>
                  );
              })}
           </div>
 
-          <div className="flex justify-between mt-1 px-1">
-            <span className="text-[10px] opacity-40">0:00</span>
-            <span className="text-[10px] opacity-40">{Math.floor(totalDurationSecs / 2)}s</span>
-            <span className="text-[10px] opacity-40">{data.summary.audioDuration}</span>
+          <div className="relative h-4 mt-1.5 px-1">
+            {/* Dynamic Ticks based on detections */}
+            {data.detections.map((d, i) => {
+              const start = parseTime(d.startTime);
+              const left = (start / totalDurationSecs) * 100;
+              return (
+                <span 
+                  key={i}
+                  className="absolute text-[10px] opacity-40 font-medium whitespace-nowrap"
+                  style={{ left: `${left}%`, transform: 'translateX(-50%)' }}
+                >
+                  {d.startTime}
+                </span>
+              );
+            })}
+            {/* End time tick */}
+            <span 
+              className="absolute text-[10px] opacity-40 font-medium whitespace-nowrap"
+              style={{ left: '100%', transform: 'translateX(-50%)' }}
+            >
+              {data.summary.audioDuration}
+            </span>
           </div>
         </div>
 
@@ -244,17 +278,34 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
         <div className="mb-8">
           <h3 className="text-sm font-bold uppercase tracking-wider opacity-60 mb-3">Analysis Breakdown</h3>
           <div className="space-y-3">
-            {data.detections.map((detection, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold px-2 py-1 bg-gray-100 rounded-md opacity-70">
-                    {detection.startTime} - {detection.endTime}
+            {data.detections.map((detection, idx) => {
+              const isSelected = selectedIndex === idx;
+              return (
+                <div 
+                  key={idx} 
+                  onClick={() => setSelectedIndex(idx)}
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'bg-[#2bee5b]/10 border-[#2bee5b] shadow-sm scale-[1.02]' 
+                      : 'bg-white border-gray-100 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${
+                      isSelected ? 'bg-[#2bee5b]/20 text-[#102215]' : 'bg-gray-100 opacity-70'
+                    }`}>
+                      {detection.startTime} - {detection.endTime}
+                    </span>
+                    <span className="text-sm font-semibold">{detection.commonName}</span>
+                  </div>
+                  <span className={`text-xs font-bold ${
+                    isSelected ? 'text-[#102215]' : 'text-[#22c54b]'
+                  }`}>
+                    {(detection.confidence * 100).toFixed(1)}%
                   </span>
-                  <span className="text-sm font-semibold">{detection.commonName}</span>
                 </div>
-                <span className="text-xs font-bold text-[#22c54b]">{(detection.confidence * 100).toFixed(1)}%</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </main>
