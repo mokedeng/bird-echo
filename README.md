@@ -1,87 +1,112 @@
 # Bird Echo
 
-鸟类识别 Web 应用 - 基于 BirdNET-Analyzer AI 模型的音频分析与鸟类识别服务。
+> 鸟类识别 Web 应用 - 录制或上传音频，AI 自动识别鸟类物种
+
+Bird Echo 是一个端到端的鸟类识别解决方案。通过设备麦克风录制或上传音频文件，自动识别其中的鸟类叫声，并展示详细的检测结果和物种信息。
 
 ## 项目简介
 
-Bird Echo 是一个端到端的鸟类识别解决方案，可以通过上传音频文件自动识别其中的鸟类叫声。项目包含：
-
-- **前端** (React): 用户界面，支持音频上传和识别结果展示
-- **后端** (Python FastAPI): RESTful API 服务，调用 BirdNET-Analyzer 进行音频分析
+- **前端** (React + TypeScript): 现代化用户界面，支持实时录音和结果可视化
+- **后端** (Python FastAPI): 高性能 API 服务，调用 BirdNET-Analyzer 进行音频分析
 
 ## 功能特性
 
-- 🎵 支持多种音频格式 (WAV, MP3, FLAC)
-- 🐦 基于 BirdNET-Analyzer 深度学习模型进行鸟类识别
-- 🚀 FastAPI 高性能异步后端
-- 📝 自动生成 API 文档 (Swagger UI)
-- 🔒 CORS 跨域支持
-- 🧹 自动清理临时文件
+- **实时录音** - 使用原生 MediaRecorder API，支持 WebM/MP4 格式
+- **文件上传** - 支持多种音频格式 (WAV, MP3, FLAC, WebM, MP4)
+- **AI 识别** - 基于 BirdNET-Analyzer 深度学习模型
+- **可视化结果** - 时间轴热力图展示检测结果
+- **物种信息** - 自动从 Wikipedia 获取鸟类图片和描述
+- **音频转换** - 后端使用 ffmpeg 自动转换格式
 
 ## 技术栈
 
-### 后端
-- **Python 3.9 ~ 3.11**
-- **FastAPI** - 现代化的 Web 框架
-- **Uvicorn** - ASGI 服务器
-- **BirdNET-Analyzer** - 鸟类识别 AI 模型
-
 ### 前端
-- React
-- 音频文件上传组件
-- 识别结果展示
+- React 19 + TypeScript
+- Tailwind CSS 样式
+- 原生 MediaRecorder API (录音)
+- Lucide React (图标)
 
-## 项目结构
-
-```
-bird-echo/
-├── app/              # 前端应用
-└── server/          # 后端服务
-    ├── app/
-    │   ├── main.py
-    │   ├── config.py
-    │   ├── models.py
-    │   ├── routes/
-    │   ├── services/
-    │   └── utils/
-    ├── uploads/
-    ├── outputs/
-    └── logs/
-```
+### 后端
+- Python 3.9 ~ 3.11
+- FastAPI + Uvicorn
+- BirdNET-Analyzer (AI 模型)
+- ffmpeg (音频转换)
 
 ## 快速开始
 
 ### 前置要求
 
-- Python 3.9 ~ 3.11
-- Node.js (如果需要运行前端)
-- pip 或 uv (Python 包管理器)
+- Python 3.9 ~ 3.11 (不支持 3.12)
+- Node.js 18+
+- ffmpeg (音频转换必需)
 
 ### 后端安装
 
 ```bash
 cd server
 
-# 安装依赖
-pip install -r app/requirements.txt
+# 创建虚拟环境
+uv venv --python 3.11
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 配置模型（需要先下载 BirdNET 模型）
+# 仅 macOS - 先安装构建工具
+brew install cmake llvm@20
+export LLVM_DIR="/usr/local/opt/llvm@20/lib/cmake/llvm"
+
+# 安装依赖
+uv pip install birdnet_analyzer
+uv pip install -r app/requirements.txt
+
+# 安装 ffmpeg
+# macOS:   brew install ffmpeg
+# Ubuntu:  sudo apt-get install ffmpeg
+# Windows: https://ffmpeg.org/download.html
+
+# 配置模型（必需）
 python setup_models.py
 
 # 启动服务器
 uvicorn app.main:app --reload --host 0.0.0.0 --port 3001
 ```
 
-服务启动后访问：
-- API 服务: http://localhost:3001
-- API 文档: http://localhost:3001/docs
-
 ### 前端安装
 
 ```bash
 cd app
 npm install
-npm start
+npm run dev
+```
+
+访问 http://localhost:3000 开始使用。
+
+## 项目结构
+
+```
+bird-echo/
+├── app/                     # React 前端
+│   ├── screens/            # 页面组件
+│   │   ├── HomeScreen.tsx       # 主页，带录制按钮
+│   │   ├── RecordingScreen.tsx  # 录音界面
+│   │   └── ResultsScreen.tsx    # 结果展示
+│   ├── hooks/              # 自定义 Hooks
+│   │   └── useMediaRecorder.ts  # 录音 Hook
+│   ├── services/           # API 层
+│   │   └── api.ts
+│   └── components/         # UI 组件
+│
+└── server/                 # FastAPI 后端
+    ├── app/
+    │   ├── main.py         # 应用入口
+    │   ├── routes/         # 路由处理器
+    │   │   └── analyze.py  # 音频分析 API
+    │   ├── services/       # 业务逻辑
+    │   │   └── birdnet_service.py
+    │   └── utils/          # 工具类
+    │       ├── csv_parser.py
+    │       ├── audio_converter.py
+    │       └── temp_cleaner.py
+    ├── uploads/            # 临时上传目录
+    └── outputs/            # 分析结果目录
 ```
 
 ## API 接口
@@ -101,7 +126,7 @@ audio: <音频文件>
 {
   "success": true,
   "data": {
-    "fileName": "cuckoo.wav",
+    "fileName": "recording.webm",
     "analysisTime": 2.45,
     "detections": [
       {
@@ -122,6 +147,46 @@ audio: <音频文件>
 }
 ```
 
+### GET /api/health
+
+健康检查端点。
+
+## 数据流
+
+```
+用户录音/上传 → MediaRecorder 创建 Blob (WebM/MP4)
+     ↓
+前端发送到 /api/analyze (multipart/form-data)
+     ↓
+后端保存到 uploads/{session_id}/
+     ↓
+ffmpeg 转换为 WAV (22050Hz, mono, 16-bit PCM)
+     ↓
+BirdNET-Analyzer 分析
+     ↓
+解析 CSV 结果，返回 JSON 响应
+     ↓
+前端展示结果 + Wikipedia 图片
+```
+
+## 常见问题
+
+### BirdNET 模型下载失败？
+
+官方 `birdnet_analyzer` 包的模型下载链接已失效。请运行项目中的 `setup_models.py` 脚本，它会从 Zenodo 下载模型。
+
+### ffmpeg 未安装？
+
+后端音频转换需要 ffmpeg。未安装时会返回错误。请根据你的操作系统安装 ffmpeg。
+
+### Python 3.12 不兼容？
+
+BirdNET-Analyzer 目前不支持 Python 3.12。请使用 Python 3.9、3.10 或 3.11。
+
+## 开发
+
+查看 [CLAUDE.md](./CLAUDE.md) 了解详细的开发指南和架构说明。
+
 ## 许可证
 
 MIT License
@@ -129,3 +194,4 @@ MIT License
 ## 致谢
 
 - [BirdNET-Analyzer](https://github.com/birdnet-team/BirdNET-Analyzer) - 鸟类识别 AI 模型
+- [Wikipedia REST API](https://en.wikipedia.org/api/rest_v1/) - 鸟类图片和描述数据
