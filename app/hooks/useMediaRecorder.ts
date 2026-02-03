@@ -52,7 +52,6 @@ export const useMediaRecorder = (options: UseMediaRecorderOptions = {}): UseMedi
 
     for (const type of mimeTypes) {
       if (MediaRecorder.isTypeSupported(type)) {
-        console.log('[useMediaRecorder] Using mimeType:', type);
         return type;
       }
     }
@@ -67,11 +66,8 @@ export const useMediaRecorder = (options: UseMediaRecorderOptions = {}): UseMedi
    */
   const start = useCallback(async () => {
     try {
-      console.log('[useMediaRecorder] Requesting microphone access');
-
       // 1. 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('[useMediaRecorder] Microphone access granted');
 
       // 2. 获取最佳 MimeType
       const selectedMimeType = getBestMimeType();
@@ -90,7 +86,6 @@ export const useMediaRecorder = (options: UseMediaRecorderOptions = {}): UseMedi
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunksRef.current.push(event.data);
-          console.log('[useMediaRecorder] Chunk received:', event.data.size, 'bytes');
           onDataAvailable?.(event.data);
         }
       };
@@ -100,12 +95,8 @@ export const useMediaRecorder = (options: UseMediaRecorderOptions = {}): UseMedi
         const blob = new Blob(chunksRef.current, {
           type: selectedMimeType || 'audio/webm',
         });
-
-        const actualDuration = ((Date.now() - startTimeRef.current) / 1000).toFixed(2);
-        console.log('[useMediaRecorder] Recording stopped, blob size:', blob.size, 'bytes, actual duration:', actualDuration + 's');
         setAudioBlob(blob);
         setIsRecording(false);
-
         onStop?.(blob);
       };
 
@@ -120,8 +111,6 @@ export const useMediaRecorder = (options: UseMediaRecorderOptions = {}): UseMedi
         setRecordingTime(elapsed);
       }, 1000);
 
-      console.log('[useMediaRecorder] Recording started');
-
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       console.error('[useMediaRecorder] Error:', error);
@@ -135,8 +124,6 @@ export const useMediaRecorder = (options: UseMediaRecorderOptions = {}): UseMedi
    */
   const stop = useCallback(async () => {
     if (mediaRecorderRef.current && isRecording) {
-      console.log('[useMediaRecorder] Stopping recording at:', recordingTime, 'seconds');
-
       // 先停止所有音频轨道，防止继续缓冲
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());

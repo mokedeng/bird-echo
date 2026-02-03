@@ -12,7 +12,6 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
   // 使用自定义录音 Hook
   const { isRecording, recordingTime, start, stop } = useMediaRecorder({
     onStop: (blob) => {
-      console.log('[RecordingScreen] Final blob received:', blob.size, 'bytes');
       onFinish(blob);
     },
     onError: (error) => {

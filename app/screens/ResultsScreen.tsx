@@ -17,7 +17,6 @@ const parseTime = (timeStr: string | number): number => {
     return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
   }
   const parsed = parseFloat(timeStr);
-  console.log('[parseTime] Parsed time:', timeStr, '->', parsed);
   if (isNaN(parsed)) {
     console.error('[parseTime] NaN result for:', timeStr);
     return 0;
@@ -31,31 +30,17 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
   const [topMatchImage, setTopMatchImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
 
-  // Debug log for received data
-  console.log('[ResultsScreen] Received data:', data);
-  console.log('[ResultsScreen] Detections:', data.detections);
-  console.log('[ResultsScreen] Detection count:', data.detections.length);
-  console.log('[ResultsScreen] Summary:', data.summary);
-
   // Find the detection with highest confidence
   const topMatch = useMemo(() => {
-    console.log('[ResultsScreen] Calculating topMatch...');
-    if (!data.detections.length) {
-      console.log('[ResultsScreen] No detections, returning null');
-      return null;
-    }
+    if (!data.detections.length) return null;
     const result = data.detections.reduce((prev, current) =>
       (prev.confidence > current.confidence) ? prev : current
     );
-    console.log('[ResultsScreen] Top match:', result);
     return result;
   }, [data]);
 
   const distinctCalls = data.detections.length;
   const totalDurationSecs = parseTime(data.summary.audioDuration);
-
-  console.log('[ResultsScreen] Distinct calls:', distinctCalls);
-  console.log('[ResultsScreen] Total duration secs:', totalDurationSecs);
 
   // Generate waveform bars that align with detections
   // Bars have higher amplitude where there is a detection
@@ -88,9 +73,6 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
       fetchBirdImage(topMatch.scientificName).then(url => {
         if (url) {
           setTopMatchImage(url);
-          console.log('[Results] Image loaded:', url);
-        } else {
-          console.log('[Results] No image found for:', topMatch.scientificName);
         }
         setImageLoading(false);
       }).catch(err => {

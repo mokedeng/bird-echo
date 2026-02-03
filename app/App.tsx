@@ -40,17 +40,8 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // Call the backend API at port 3001
       const response = await analyzeAudio(audioBlob);
-      console.log('[App] API Response:', response);
-      console.log('[App] Response success:', response.success);
-      console.log('[App] Response data:', response.data);
-      console.log('[App] Response error:', response.error);
-
       if (response.success) {
-        console.log('[App] Setting analysisResult:', response.data);
-        console.log('[App] Detections:', response.data?.detections);
-        console.log('[App] Detection count:', response.data?.detections?.length);
         setAnalysisResult(response.data);
       } else {
         throw new Error(getErrorMessage(response.error) || "分析失败");
