@@ -9,6 +9,12 @@ Bird Echo 是一个端到端的鸟类识别解决方案。通过设备麦克风�
 - **前端** (React + TypeScript): 现代化用户界面，支持实时录音和结果可视化
 - **后端** (Python FastAPI): 高性能 API 服务，调用 BirdNET-Analyzer 进行音频分析
 
+## 界面展示
+
+| 主页 | 录音中 | 分析结果 |
+|:---:|:---:|:---:|
+| ![主页](docs/screenshots/home.png) | ![录音中](docs/screenshots/recording.png) | ![分析结果](docs/screenshots/analysis.png) |
+
 ## 功能特性
 
 - **实时录音** - 使用原生 MediaRecorder API，支持 WebM/MP4 格式
