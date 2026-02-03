@@ -54,7 +54,7 @@ server/
 ### 2. 获取代码并进入目录
 
 ```bash
-git clone https://github.com/your-username/bird-echo.git
+git clone https://github.com/mokedeng/bird-echo.git
 cd server
 ```
 
