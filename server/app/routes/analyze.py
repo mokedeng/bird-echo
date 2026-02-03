@@ -8,6 +8,7 @@ from datetime import datetime
 from .. import config
 from ..models import AnalysisResponse, Detection, Summary, AnalysisData, HealthResponse
 from ..services.birdnet_service import birdnet_service
+from ..utils.audio_converter import convert_to_wav
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +53,32 @@ async def analyze_audio(audio: UploadFile = File(...)):
         file_size = file_path.stat().st_size
         logger.info(f"[{session_id}] File saved: {file_path} ({file_size} bytes)")
 
-        # 3. 调用 BirdNET 分析
-        result = birdnet_service.analyze_audio(str(file_path), session_id)
+        # 3. 如果不是 WAV 格式，转换为 WAV
+        analysis_file = file_path
+        if file_ext != ".wav" and file_ext != ".wave":
+            logger.info(f"[{session_id}] Converting {file_ext} to WAV format")
+            wav_path = config.UPLOAD_DIR / f"{session_id}_converted.wav"
+            try:
+                analysis_file = convert_to_wav(file_path, wav_path)
+                logger.info(f"[{session_id}] Conversion complete: {wav_path}")
+            except RuntimeError as e:
+                # ffmpeg 不可用时的降级处理：尝试直接分析原文件
+                logger.warning(f"[{session_id}] Conversion failed, trying original file: {e}")
+                analysis_file = file_path
+
+        # 4. 调用 BirdNET 分析
+        logger.info(f"[{session_id}] Starting analysis with file: {analysis_file}")
+        result = birdnet_service.analyze_audio(str(analysis_file), session_id)
 
         # 4. 构建响应
         detections = result["detections"]
         species_set = set(d["scientificName"] for d in detections)
         audio_duration = detections[-1]["endTime"] if detections else "0:00"
+
+        # 记录检测到的时间范围
+        if detections:
+            logger.info(f"[{session_id}] Detection time range: {detections[0]['startTime']} - {detections[-1]['endTime']}")
+            logger.info(f"[{session_id}] Total detections: {len(detections)}, Species: {len(species_set)}")
 
         response_data = AnalysisData(
             fileName=audio.filename,
@@ -72,7 +92,7 @@ async def analyze_audio(audio: UploadFile = File(...)):
         )
 
         # 5. 异步清理临时文件
-        _cleanup_session(session_id, file_path)
+        _cleanup_session(session_id, file_path, analysis_file)
 
         return AnalysisResponse(success=True, data=response_data)
 
@@ -82,7 +102,10 @@ async def analyze_audio(audio: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"[{session_id}] Analysis failed: {e}")
         # 确保清理
-        _cleanup_session(session_id, file_path if 'file_path' in locals() else None)
+        if 'analysis_file' in locals():
+            _cleanup_session(session_id, file_path, analysis_file)
+        elif 'file_path' in locals():
+            _cleanup_session(session_id, file_path)
 
         raise HTTPException(
             status_code=500,
@@ -100,14 +123,19 @@ async def health_check():
     )
 
 
-def _cleanup_session(session_id: str, file_path: Path = None):
+def _cleanup_session(session_id: str, file_path: Path = None, analysis_file: Path = None):
     """清理会话相关的临时文件"""
     import threading
 
     def cleanup():
         try:
+            # 删除上传的原始文件
             if file_path and file_path.exists():
                 file_path.unlink()
+
+            # 删除转换后的 WAV 文件（如果与原文件不同）
+            if analysis_file and analysis_file != file_path and analysis_file.exists():
+                analysis_file.unlink()
 
             output_dir = config.OUTPUT_DIR / session_id
             if output_dir.exists():

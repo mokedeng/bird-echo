@@ -261,9 +261,16 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
                 </div>
               ) : (
                 <div className="text-center">
-                  <Icons.Image size={48} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm text-gray-400">No image available</p>
-                  <p className="text-xs text-gray-300">{topMatch.scientificName}</p>
+                  {/* Bird silhouette as fallback */}
+                  <div className="relative mb-3">
+                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-green-200 to-green-300 rounded-full flex items-center justify-center">
+                      <svg className="w-14 h-14 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 11c0 5.523-4.477 10-10 10S1 16.523 1 11c0-1.787.474-3.465 1.304-4.925C2.674 4.247 4.798 2.5 7.5 2.5c2.426 0 4.57 1.27 5.785 3.175C14.194 4.757 15.79 4 17.5 4c2.481 0 4.5 2.019 4.5 4.5 0 .72-.17 1.4-.472 2h-.028z"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-base font-semibold text-gray-600 mb-1">{topMatch.commonName}</p>
+                  <p className="text-xs text-gray-400">Image coming soon</p>
                 </div>
               )}
               <div className="absolute top-4 left-4 bg-[#2bee5b] text-[#102215] text-[10px] font-black uppercase tracking-[0.15em] px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg">

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { MultiRecorder } from 'react-ts-audio-recorder';
+import React, { useEffect } from 'react';
+import { useMediaRecorder } from '../hooks/useMediaRecorder';
 import { Icons } from '../components/Icons';
 import { Waveform } from '../components/Waveform';
 
@@ -9,98 +9,39 @@ interface RecordingScreenProps {
 }
 
 export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFinish }) => {
-  const [seconds, setSeconds] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
-  const recorderRef = useRef<MultiRecorder | null>(null);
-  const timerRef = useRef<number | null>(null);
+  // 使用自定义录音 Hook
+  const { isRecording, recordingTime, start, stop } = useMediaRecorder({
+    onStop: (blob) => {
+      console.log('[RecordingScreen] Final blob received:', blob.size, 'bytes');
+      onFinish(blob);
+    },
+    onError: (error) => {
+      console.error('[RecordingScreen] Recording error:', error);
+      alert('无法访问麦克风，请允许麦克风权限。');
+      onClose();
+    },
+  });
 
-  // 初始化录音器并开始录音
+  // 组件挂载时自动开始录音
   useEffect(() => {
-    const initRecorder = async () => {
-      try {
-        console.log('[Recording] Initializing WAV recorder');
-
-        // WAV 格式需要 workletURL（用于 PCM 编码）
-        // 使用与 cuckoo.wav 相同的参数以获得一致的检测结果
-        const recorder = new MultiRecorder({
-          format: 'wav',
-          workletURL: '/pcm-worklet.js', // 从 public 目录加载
-          sampleRate: 22050, // 匹配原始文件采样率
-        });
-
-        await recorder.init();
-        recorderRef.current = recorder;
-
-        console.log('[Recording] Starting recording');
-        await recorder.startRecording();
-        setIsRecording(true);
-        console.log('[Recording] Recording started successfully');
-
-        // 启动计时器
-        timerRef.current = window.setInterval(() => {
-          setSeconds((s) => s + 1);
-        }, 1000);
-
-      } catch (err) {
-        console.error('[Recording] Error:', err);
-        alert('无法访问麦克风，请允许麦克风权限。');
-        onClose();
-      }
-    };
-
-    initRecorder();
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (recorderRef.current) {
-        recorderRef.current.close();
-      }
-    };
+    start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 处理停止录音
   const handleStopRecording = async () => {
-    if (recorderRef.current && isRecording) {
-      console.log('[Recording] Stopping recording');
-
-      try {
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-
-        setIsRecording(false);
-        const blob = await recorderRef.current.stopRecording();
-        console.log('[Recording] WAV blob created:', blob.type, blob.size, 'bytes', 'duration:', (blob as any).duration || 'unknown');
-
-        // 先发送 blob，稍后再清理 recorder
-        onFinish(blob);
-
-        // 延迟清理，确保 blob 处理完成
-        setTimeout(() => {
-          if (recorderRef.current) {
-            recorderRef.current.close();
-            recorderRef.current = null;
-          }
-        }, 100);
-      } catch (err) {
-        console.error('[Recording] Stop error:', err);
-      }
-    }
+    await stop();
   };
 
-  // 清理
+  // 处理关闭（取消录音）
   const handleClose = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
+    if (isRecording) {
+      stop().then(() => {
+        onClose();
+      });
+    } else {
+      onClose();
     }
-    if (recorderRef.current) {
-      recorderRef.current.close();
-    }
-    onClose();
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -112,15 +53,12 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
     };
   };
 
-  const time = formatTime(seconds);
+  const time = formatTime(recordingTime);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-surface overflow-hidden">
-      {/* Blurred Background */}
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-30 blur-2xl scale-110"
-        style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=2560&auto=format&fit=crop")' }}
-      />
+    <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden">
+      {/* CSS Gradient Background - instant load, no external image */}
+      <div className="absolute inset-0 bg-gradient-to-br from-green-100 via-green-50 to-emerald-100" />
 
       {/* Content */}
       <div className="relative z-10 flex flex-col h-full">

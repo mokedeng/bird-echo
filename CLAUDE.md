@@ -39,6 +39,11 @@ export LLVM_DIR="/usr/local/opt/llvm@20/lib/cmake/llvm"
 uv pip install birdnet_analyzer
 uv pip install -r app/requirements.txt
 
+# 安装 ffmpeg (音频转换必需)
+# macOS: brew install ffmpeg
+# Ubuntu: sudo apt-get install ffmpeg
+# Windows: https://ffmpeg.org/download.html
+
 # 重要: 模型配置
 python setup_models.py
 
@@ -69,6 +74,9 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 ### 后端导入
 所有包导入使用 **相对导入** (例如 `from ..models import Detection`，而不是 `from models import Detection`)。
 
+### ffmpeg 依赖
+**必需**: 后端使用 ffmpeg 进行音频格式转换。未安装时音频分析会失败或降级到直接处理。
+
 ---
 
 ## 架构
@@ -84,11 +92,14 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 
 **导航**: 三个页面，由 `App.tsx` 条件渲染控制（无路由库，纯状态驱动）:
 - `HomeScreen.tsx` - 主页，带录制按钮
-- `RecordingScreen.tsx` - 音频录制界面，使用 `react-ts-audio-recorder` 库直接录制 WAV 格式
+- `RecordingScreen.tsx` - 音频录制界面，使用原生 MediaRecorder API
 - `ResultsScreen.tsx` - 显示检测结果，客户端从 Wikipedia 获取鸟类图片
 
 **渲染优先级** (`App.tsx` 的 `renderContent()` 函数):
 1. 错误状态 > 2. 加载状态 > 3. 结果页 > 4. 标签页导航
+
+**自定义 Hooks**:
+- `hooks/useMediaRecorder.ts` - 封装原生 MediaRecorder API，支持 WebM/MP4 格式
 
 **API 层**: `services/api.ts` - 单文件包含所有后端通信和 TypeScript 接口定义。
 
@@ -97,7 +108,7 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 **入口**: `app/main.py` - 注册路由、CORS、启动/关闭处理器
 
 **路由处理器**: `app/routes/analyze.py`
-- POST `/api/analyze` - 接收 multipart form data 音频文件
+- POST `/api/analyze` - 接收 multipart form data 音频文件，自动转换为 WAV
 - GET `/api/health` - 健康检查
 
 **服务层**: `app/services/birdnet_service.py`
@@ -107,15 +118,17 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 **工具类**:
 - `app/utils/csv_parser.py` - 解析 BirdNET `*results.csv` 文件
 - `app/utils/temp_cleaner.py` - 守护线程，定期清理文件
+- `app/utils/audio_converter.py` - ffmpeg 音频格式转换
 
 ### 数据流
 
-1. 用户录制音频 → MediaRecorder 创建 Blob
+1. 用户录制音频 → 原生 MediaRecorder 创建 Blob (WebM/MP4)
 2. 前端发送到 `POST /api/analyze` (multipart/form-data)
 3. 后端保存到 `uploads/{session_id}/`
-4. BirdNET-Analyzer 子进程写入 `outputs/{session_id}/`
-5. 解析 CSV，返回响应
-6. 清理线程异步删除临时文件
+4. **后端使用 ffmpeg 转换为 WAV** (22050Hz, mono, 16-bit PCM)
+5. BirdNET-Analyzer 子进程写入 `outputs/{session_id}/`
+6. 解析 CSV，返回响应
+7. 清理线程异步删除临时文件
 
 ### 类型同步
 
@@ -137,10 +150,14 @@ interface AnalysisData {
 | 文件 | 用途 |
 |------|---------|
 | `app/App.tsx` | 根组件，所有状态，路由逻辑 |
+| `app/hooks/useMediaRecorder.ts` | 自定义录音 Hook |
 | `app/services/api.ts` | API 通信，类型定义 |
+| `app/screens/RecordingScreen.tsx` | 录音界面 |
 | `app/screens/ResultsScreen.tsx` | 结果展示，Wikipedia 图片 |
 | `server/app/main.py` | FastAPI 应用入口 |
+| `server/app/routes/analyze.py` | 分析 API，音频转换 |
 | `server/app/services/birdnet_service.py` | BirdNET 集成层 |
+| `server/app/utils/audio_converter.py` | ffmpeg 音频转换 |
 | `server/app/config.py` | 环境配置 |
 
 ---
@@ -168,16 +185,7 @@ CLEANUP_MAX_AGE=86400
   - URL 模式: `https://en.wikipedia.org/api/rest_v1/page/summary/{scientificName}`
   - 返回 `thumbnail.source` 作为图片 URL
   - 优雅降级：无图片不影响结果显示
-
----
-
-## 前端依赖
-
-### react-ts-audio-recorder
-音频录制库，支持直接录制 WAV 格式（与 BirdNET-Analyzer 兼容）。
-- **安装**: `npm install react-ts-audio-recorder`
-- **使用**: `RecordingScreen.tsx` 中使用 `MultiRecorder` 类
-- **格式**: WAV (无压缩 PCM，采样率默认 48000Hz)
+- **ffmpeg**: 后端音频转换，WebM/MP4 → WAV
 
 ---
 
@@ -189,7 +197,7 @@ CLEANUP_MAX_AGE=86400
 
 3. **端口冲突**: 前端使用 3000，后端使用 3001 - 确保两个端口都可用
 
-4. **音频格式**: BirdNET-Analyzer 对 WAV 格式支持最好。前端使用 `react-ts-audio-recorder` 直接录制 WAV 格式，避免 WebM/Opus 格式兼容性问题
+4. **ffmpeg 依赖**: 后端音频转换需要 ffmpeg。未安装时会返回错误（不会降级处理原格式）
 
 ---
 
@@ -212,3 +220,21 @@ opacity = Math.max(0.4, (confidence - 0.98) * 50)
 ### 双重清理策略
 1. **即时清理**: 每次分析后，守护线程清理该 session 的文件 (`routes/analyze.py`)
 2. **定期清理**: TempCleaner 守护进程每小时清理孤儿文件 (`utils/temp_cleaner.py`)
+
+### 录音格式兼容性
+`useMediaRecorder` Hook 动态检测浏览器支持的最佳格式：
+- Chrome/Android: `audio/webm;codecs=opus`
+- Firefox: `audio/webm` 或 `audio/ogg`
+- Safari/iOS: `audio/mp4`
+- 后端统一转换为 WAV 供 BirdNET-Analyzer 使用
+
+### Wikipedia 图片尺寸优化
+为提升首页加载速度，Wikipedia 图片使用小尺寸请求：
+- `HomeScreen.tsx`: 请求 `width=100` 的缩略图（~2KB，而非 ~50KB）
+- `ResultsScreen.tsx`: 请求 `width=440` 的标准尺寸
+- 所有图片加载都有骨架屏和错误回退（🐦 emoji）
+
+### 页面背景策略
+- `HomeScreen.tsx`: CSS 渐变 `bg-gradient-to-br from-green-50 to-emerald-100`
+- `RecordingScreen.tsx`: CSS 渐变 `bg-gradient-to-br from-green-100 via-green-50 to-emerald-100`
+- 避免使用外部背景图片（Unsplash 等），防止加载延迟和颜色突变

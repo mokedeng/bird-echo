@@ -1,19 +1,57 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icons } from '../components/Icons';
 
 interface HomeScreenProps {
   onRecordStart: () => void;
 }
 
-const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, image }) => (
-  <div className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer hover:opacity-80 transition-opacity">
-    <div 
-      className="w-16 h-16 rounded-full border-2 border-white shadow-md bg-cover bg-center"
-      style={{ backgroundImage: `url(${image})` }}
-    />
-    <p className="text-dark text-[13px] font-medium">{name}</p>
-  </div>
-);
+// 使用更小的图片尺寸 (100px) 以加快加载速度
+const BIRD_IMAGES = [
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Erithacus_rubecula_with_cocked_head.jpg/100px-Erithacus_rubecula_with_cocked_head.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Blue_Jay-27527.jpg/100px-Blue_Jay-27527.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/100px-House_Sparrow_mar08.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Cardinalis_cardinalis_NBII.jpg/100px-Cardinalis_cardinalis_NBII.jpg"
+];
+
+const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, image }) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = image;
+    img.onload = () => setImageLoaded(true);
+    img.onerror = () => setImageError(true);
+  }, [image]);
+
+  return (
+    <div className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer hover:opacity-80 transition-opacity">
+      <div className="w-16 h-16 rounded-full border-2 border-white shadow-md bg-gray-100 overflow-hidden relative">
+        {imageError ? (
+          // Fallback: bird icon when image fails to load
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-100 to-green-200">
+            <span className="text-2xl">🐦</span>
+          </div>
+        ) : (
+          <>
+            {!imageLoaded && (
+              // Loading skeleton
+              <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+            )}
+            <img
+              src={image}
+              alt={name}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageError(true)}
+            />
+          </>
+        )}
+      </div>
+      <p className="text-dark text-[13px] font-medium">{name}</p>
+    </div>
+  );
+};
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
   return (
@@ -65,21 +103,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
         </div>
         
         <div className="flex overflow-x-auto no-scrollbar gap-6 px-6 pb-4">
-          <RecentDiscovery 
-            name="Robin" 
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Erithacus_rubecula_with_cocked_head.jpg/440px-Erithacus_rubecula_with_cocked_head.jpg" 
+          <RecentDiscovery
+            name="Robin"
+            image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Erithacus_rubecula_with_cocked_head.jpg/100px-Erithacus_rubecula_with_cocked_head.jpg"
           />
-          <RecentDiscovery 
-            name="Blue Jay" 
-            image="https://upload.wikimedia.org/wikipedia/commons/4/40/Blue_Jay-27527.jpg" 
+          <RecentDiscovery
+            name="Blue Jay"
+            image="https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Blue_Jay-27527.jpg/100px-Blue_Jay-27527.jpg"
           />
-          <RecentDiscovery 
-            name="Sparrow" 
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/440px-House_Sparrow_mar08.jpg" 
+          <RecentDiscovery
+            name="Sparrow"
+            image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/100px-House_Sparrow_mar08.jpg"
           />
-          <RecentDiscovery 
-            name="Cardinal" 
-            image="https://upload.wikimedia.org/wikipedia/commons/b/b5/Cardinalis_cardinalis_NBII.jpg" 
+          <RecentDiscovery
+            name="Cardinal"
+            image="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Cardinalis_cardinalis_NBII.jpg/100px-Cardinalis_cardinalis_NBII.jpg"
           />
         </div>
       </div>
