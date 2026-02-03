@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { MultiRecorder } from 'react-ts-audio-recorder';
 import { Icons } from '../components/Icons';
 import { Waveform } from '../components/Waveform';
 
@@ -10,68 +11,96 @@ interface RecordingScreenProps {
 export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFinish }) => {
   const [seconds, setSeconds] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<MultiRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  // Start recording on mount
+  // 初始化录音器并开始录音
   useEffect(() => {
-    startRecording();
+    const initRecorder = async () => {
+      try {
+        console.log('[Recording] Initializing WAV recorder');
+
+        // WAV 格式需要 workletURL（用于 PCM 编码）
+        // 使用与 cuckoo.wav 相同的参数以获得一致的检测结果
+        const recorder = new MultiRecorder({
+          format: 'wav',
+          workletURL: '/pcm-worklet.js', // 从 public 目录加载
+          sampleRate: 22050, // 匹配原始文件采样率
+        });
+
+        await recorder.init();
+        recorderRef.current = recorder;
+
+        console.log('[Recording] Starting recording');
+        await recorder.startRecording();
+        setIsRecording(true);
+        console.log('[Recording] Recording started successfully');
+
+        // 启动计时器
+        timerRef.current = window.setInterval(() => {
+          setSeconds((s) => s + 1);
+        }, 1000);
+
+      } catch (err) {
+        console.error('[Recording] Error:', err);
+        alert('无法访问麦克风，请允许麦克风权限。');
+        onClose();
+      }
+    };
+
+    initRecorder();
+
     return () => {
-      stopMediaRecorder();
-      if (timerRef.current) window.clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (recorderRef.current) {
+        recorderRef.current.close();
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const startRecording = async () => {
-    try {
-      // 测试模式：预加载 cuckoo.wav 文件
-      console.log('[Recording] Test mode: preloading cuckoo.wav');
+  // 处理停止录音
+  const handleStopRecording = async () => {
+    if (recorderRef.current && isRecording) {
+      console.log('[Recording] Stopping recording');
 
-      const response = await fetch('http://localhost:3001/server/cuckoo.wav');
-      if (!response.ok) {
-        throw new Error('Failed to fetch cuckoo.wav');
+      try {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        setIsRecording(false);
+        const blob = await recorderRef.current.stopRecording();
+        console.log('[Recording] WAV blob created:', blob.type, blob.size, 'bytes', 'duration:', (blob as any).duration || 'unknown');
+
+        // 先发送 blob，稍后再清理 recorder
+        onFinish(blob);
+
+        // 延迟清理，确保 blob 处理完成
+        setTimeout(() => {
+          if (recorderRef.current) {
+            recorderRef.current.close();
+            recorderRef.current = null;
+          }
+        }, 100);
+      } catch (err) {
+        console.error('[Recording] Stop error:', err);
       }
-
-      const blob = await response.blob();
-      console.log('[Recording] Test audio blob loaded:', blob.type, blob.size, 'bytes');
-
-      // 保存 blob 供停止时使用
-      (mediaRecorderRef as any).testBlob = blob;
-
-      setIsRecording(true);
-
-      timerRef.current = window.setInterval(() => {
-        setSeconds(s => s + 1);
-      }, 1000);
-
-    } catch (err) {
-      console.error("Error:", err);
-      alert("Error: " + err.message);
-      onClose();
     }
   };
 
-  const stopRecording = () => {
-    if (isRecording) {
-      setIsRecording(false);
-
-      // 测试模式：使用预加载的 cuckoo.wav
-      const testBlob = (mediaRecorderRef as any).testBlob;
-      if (testBlob) {
-        console.log('[Recording] Stop: using test audio file');
-        onFinish(testBlob);
-      }
-
-      stopMediaRecorder(); // clean up
+  // 清理
+  const handleClose = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
     }
-  };
-
-  const stopMediaRecorder = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    if (recorderRef.current) {
+      recorderRef.current.close();
     }
+    onClose();
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -88,19 +117,19 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-surface overflow-hidden">
       {/* Blurred Background */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center opacity-30 blur-2xl scale-110"
         style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=2560&auto=format&fit=crop")' }}
       />
-      
+
       {/* Content */}
       <div className="relative z-10 flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-6 pt-8">
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-black/5">
+          <button onClick={handleClose} className="p-2 rounded-full hover:bg-black/5">
             <Icons.Close className="text-dark" size={28} />
           </button>
-          
+
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-2 mb-1">
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
@@ -108,7 +137,7 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
             </div>
             <h2 className="text-xl font-bold">Listening...</h2>
           </div>
-          
+
           <div className="w-10" /> {/* Spacer */}
         </div>
 
@@ -139,16 +168,16 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
 
         {/* Footer Controls */}
         <div className="px-6 pb-12 pt-4 flex flex-col items-center gap-6">
-          <button 
-            onClick={stopRecording}
+          <button
+            onClick={handleStopRecording}
             className="w-full max-w-xs h-16 bg-primary rounded-full flex items-center justify-center gap-3 shadow-xl shadow-primary/30 active:scale-95 transition-transform"
           >
             <Icons.Stop className="fill-dark stroke-dark" size={24} />
             <span className="font-bold uppercase tracking-widest text-dark">Stop Recording</span>
           </button>
-          
-          <button 
-            onClick={onClose}
+
+          <button
+            onClick={handleClose}
             className="text-sm font-bold text-dark/60 hover:text-dark transition-colors"
           >
             Cancel

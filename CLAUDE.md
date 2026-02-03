@@ -84,7 +84,7 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 
 **导航**: 三个页面，由 `App.tsx` 条件渲染控制（无路由库，纯状态驱动）:
 - `HomeScreen.tsx` - 主页，带录制按钮
-- `RecordingScreen.tsx` - 音频录制界面（**当前为测试模式**：从后端获取 cuckoo.wav 而非真实麦克风）
+- `RecordingScreen.tsx` - 音频录制界面，使用 `react-ts-audio-recorder` 库直接录制 WAV 格式
 - `ResultsScreen.tsx` - 显示检测结果，客户端从 Wikipedia 获取鸟类图片
 
 **渲染优先级** (`App.tsx` 的 `renderContent()` 函数):
@@ -171,15 +171,25 @@ CLEANUP_MAX_AGE=86400
 
 ---
 
+## 前端依赖
+
+### react-ts-audio-recorder
+音频录制库，支持直接录制 WAV 格式（与 BirdNET-Analyzer 兼容）。
+- **安装**: `npm install react-ts-audio-recorder`
+- **使用**: `RecordingScreen.tsx` 中使用 `MultiRecorder` 类
+- **格式**: WAV (无压缩 PCM，采样率默认 48000Hz)
+
+---
+
 ## 常见陷阱
 
 1. **API 文件验证**: `/api/analyze` 端点同时验证 content-type 和文件扩展名 (为了 curl 兼容性)
 
-2. **模拟数据回退**: 前端在 `App.tsx` 中内置了模拟数据，当后端不可用时自动激活
+2. **虚拟环境路径**: 运行 `setup_models.py` 时，模型会安装到当前激活的 venv 的 site-packages 中
 
-3. **虚拟环境路径**: 运行 `setup_models.py` 时，模型会安装到当前激活的 venv 的 site-packages 中
+3. **端口冲突**: 前端使用 3000，后端使用 3001 - 确保两个端口都可用
 
-4. **端口冲突**: 前端使用 3000，后端使用 3001 - 确保两个端口都可用
+4. **音频格式**: BirdNET-Analyzer 对 WAV 格式支持最好。前端使用 `react-ts-audio-recorder` 直接录制 WAV 格式，避免 WebM/Opus 格式兼容性问题
 
 ---
 
