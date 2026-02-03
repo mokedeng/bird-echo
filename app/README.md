@@ -1,20 +1,126 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Bird Echo - 前端应用
 
-# Run and deploy your AI Studio app
+Bird Echo 的 React 前端应用，提供鸟类识别的用户界面。
 
-This contains everything you need to run your app locally.
+## 技术栈
 
-View your app in AI Studio: https://ai.studio/apps/drive/1F3ar9QE7oRppxfP9cULpu2kM5eYE_bpn
+- **React 19** - UI 框架
+- **TypeScript** - 类型安全
+- **Tailwind CSS** - 样式框架
+- **Vite** - 构建工具
+- **Lucide React** - 图标库
 
-## Run Locally
+## 开发命令
 
-**Prerequisites:**  Node.js
+```bash
+# 安装依赖
+npm install
 
+# 启动开发服务器 (端口 3000)
+npm run dev
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+# 生产构建
+npm run build
+
+# 预览生产构建
+npm run preview
+```
+
+## 项目结构
+
+```
+app/
+├── screens/              # 页面组件
+│   ├── HomeScreen.tsx       # 主页，带录制按钮
+│   ├── RecordingScreen.tsx  # 录音界面
+│   └── ResultsScreen.tsx    # 结果展示
+├── hooks/               # 自定义 Hooks
+│   └── useMediaRecorder.ts  # 录音 Hook
+├── services/            # API 层
+│   └── api.ts
+├── components/          # UI 组件
+│   ├── Icons.tsx           # 图标组件
+│   └── Waveform.tsx        # 波形组件
+├── types.ts             # TypeScript 类型定义
+├── App.tsx              # 根组件
+└── index.css            # 全局样式
+```
+
+## 状态管理
+
+所有状态集中在 `App.tsx` 中，不使用 Redux 或 Context API：
+
+```typescript
+- currentTab: "home" | "library" | "profile"
+- showRecording: boolean
+- analysisResult: AnalysisData | null
+- isAnalyzing: boolean
+- error: string | null
+```
+
+## 核心功能
+
+### 实时录音
+
+使用原生 MediaRecorder API 录制音频，通过 `useMediaRecorder` Hook 封装：
+
+```typescript
+const { isRecording, recordingTime, start, stop } = useMediaRecorder({
+  onStop: (blob) => {
+    // 发送到后端分析
+    api.analyzeAudio(blob);
+  },
+  onError: (error) => {
+    console.error(error);
+  },
+});
+```
+
+### 音频分析
+
+通过 `services/api.ts` 与后端通信：
+
+```typescript
+const result = await api.analyzeAudio(audioBlob);
+```
+
+### 结果展示
+
+- 时间轴热力图显示检测时间段
+- 置信度控制标记透明度
+- 自动从 Wikipedia 获取鸟类图片
+
+## 环境配置
+
+创建 `.env` 文件（可选）：
+
+```env
+VITE_API_URL=http://localhost:3001
+```
+
+## 样式约定
+
+- 使用 Tailwind CSS 工具类
+- 颜色主题：绿色系（nature/eco 风格）
+- 圆角、阴影营造现代化界面
+- 响应式设计
+
+## 图片加载策略
+
+- **首页**: 使用 Wikipedia 100px 缩略图（~2KB）
+- **结果页**: 使用 Wikipedia 440px 标准尺寸
+- 所有图片都有加载骨架屏和错误回退
+
+## 浏览器兼容性
+
+- Chrome/Android: WebM + Opus
+- Firefox: WebM 或 OGG
+- Safari/iOS: MP4
+- 后端统一转换为 WAV
+
+## 开发注意事项
+
+1. **相对导入**: 所有 API 调用使用 `services/api.ts`
+2. **类型同步**: `types.ts` 与后端 `models.py` 保持同步
+3. **错误处理**: 所有异步操作都包含错误处理
+4. **加载状态**: 使用骨架屏提升用户体验
