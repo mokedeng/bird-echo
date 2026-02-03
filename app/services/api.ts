@@ -7,23 +7,37 @@ const API_BASE_URL = 'http://localhost:3001/api';
  */
 export const analyzeAudio = async (audioBlob: Blob): Promise<ApiResponse> => {
   const formData = new FormData();
-  // Ensure the file has a name ending in .wav
-  formData.append('audio', audioBlob, 'recording.wav');
+  // Use correct file extension based on blob type
+  const fileExtension = audioBlob.type.includes('wav') ? 'wav' : 'webm';
+  formData.append('audio', audioBlob, `recording.${fileExtension}`);
+
+  // Debug: log audio blob details
+  console.log('[API] Audio blob size:', audioBlob.size, 'bytes');
+  console.log('[API] Audio blob type:', audioBlob.type);
+  console.log('[API] Using file extension:', fileExtension);
 
   try {
+    console.log('[API] Sending request to:', `${API_BASE_URL}/analyze`);
     const response = await fetch(`${API_BASE_URL}/analyze`, {
       method: 'POST',
       body: formData,
     });
 
+    console.log('[API] Response status:', response.status);
+
+    // Handle HTTP errors from FastAPI
     if (!response.ok) {
-      throw new Error(`Server responded with ${response.status}`);
+      const errorData = await response.json();
+      console.error('[API] Error response:', errorData);
+      // FastAPI HTTPException returns { detail: "error message" }
+      throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
     }
 
     const data: ApiResponse = await response.json();
+    console.log('[API] Success response:', data);
     return data;
   } catch (error) {
-    console.error('Analysis failed:', error);
+    console.error('[API] Request failed:', error);
     throw error;
   }
 };
@@ -33,27 +47,34 @@ export const analyzeAudio = async (audioBlob: Blob): Promise<ApiResponse> => {
  */
 export const fetchBirdImage = async (scientificName: string): Promise<string | null> => {
   try {
-    // Wikipedia API requires encoded titles
+    console.log('[Image] Fetching image for:', scientificName);
+
+    // Use Wikipedia REST API for page summary with thumbnail
     const encodedTitle = encodeURIComponent(scientificName);
-    const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodedTitle}&prop=pageimages&format=json&pithumbsize=600&origin=*`;
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodedTitle}`;
+
+    console.log('[Image] Fetching URL:', url);
 
     const response = await fetch(url);
-    const data = await response.json();
 
-    const pages = data.query?.pages;
-    if (!pages) return null;
-
-    const pageId = Object.keys(pages)[0];
-    if (pageId === '-1') return null; // Not found
-
-    const page = pages[pageId];
-    if (page.thumbnail) {
-      return (page.thumbnail as WikiImageResult).source;
+    if (!response.ok) {
+      console.warn('[Image] Wikipedia API response not OK:', response.status);
+      return null;
     }
 
+    const data = await response.json();
+    console.log('[Image] Wikipedia response:', data);
+
+    if (data.thumbnail) {
+      const imageUrl = data.thumbnail.source;
+      console.log('[Image] Found image URL:', imageUrl);
+      return imageUrl;
+    }
+
+    console.warn('[Image] No thumbnail in response');
     return null;
   } catch (error) {
-    console.warn('Failed to fetch Wiki image:', error);
+    console.error('[Image] Failed to fetch Wiki image:', error);
     return null;
   }
 };

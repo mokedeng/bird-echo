@@ -1,8 +1,8 @@
 import React from 'react';
-import { 
-  Menu, User, Mic, Home, Compass, Sparkles, Settings, X, StopCircle, 
+import {
+  Menu, User, Mic, Home, Compass, Sparkles, Settings, X, StopCircle,
   ArrowLeft, MoreHorizontal, FileAudio, Play, PlusSquare, Info, Check,
-  ChevronLeft, BadgeCheck, CheckCircle2, Library
+  ChevronLeft, BadgeCheck, CheckCircle2, Library, Image
 } from 'lucide-react';
 
 export const Icons = {
@@ -25,5 +25,6 @@ export const Icons = {
   ChevronLeft,
   BadgeCheck,
   CheckCircle: CheckCircle2,
-  Library
+  Library,
+  Image
 };

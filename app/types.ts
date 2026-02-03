@@ -22,8 +22,8 @@ export interface AnalysisData {
 
 export interface ApiResponse {
   success: boolean;
-  data: AnalysisData;
-  error: string | null;
+  data?: AnalysisData;
+  error?: string | Record<string, unknown> | null;
 }
 
 export interface WikiImageResult {

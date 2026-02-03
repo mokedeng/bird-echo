@@ -6,57 +6,17 @@ import { NavBar } from './components/NavBar';
 import { analyzeAudio } from './services/api';
 import { AnalysisData } from './types';
 
-// Mock data from the prompt for fallback
-const MOCK_DATA: AnalysisData = {
-  fileName: "cuckoo.wav",
-  analysisTime: 14.35,
-  detections: [
-    {
-      startTime: "0:00",
-      endTime: "0:03",
-      scientificName: "Cuculus canorus",
-      commonName: "Common Cuckoo",
-      confidence: 0.997,
-      label: ""
-    },
-    {
-      startTime: "0:03",
-      endTime: "0:06",
-      scientificName: "Cuculus canorus",
-      commonName: "Common Cuckoo",
-      confidence: 0.9895,
-      label: ""
-    },
-    {
-      startTime: "0:06",
-      endTime: "0:09",
-      scientificName: "Cuculus canorus",
-      commonName: "Common Cuckoo",
-      confidence: 0.9944,
-      label: ""
-    },
-    {
-      startTime: "0:09",
-      endTime: "0:12",
-      scientificName: "Cuculus canorus",
-      commonName: "Common Cuckoo",
-      confidence: 0.9869,
-      label: ""
-    },
-    {
-      startTime: "0:12",
-      endTime: "0:14",
-      scientificName: "Cuculus canorus",
-      commonName: "Common Cuckoo",
-      confidence: 0.9988,
-      label: ""
-    }
-  ],
-  summary: {
-    totalDetections: 5,
-    speciesCount: 1,
-    audioDuration: "0:14"
+// Helper to extract error message from various types
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null) {
+    // Handle dict type error
+    const obj = error as Record<string, unknown>;
+    if (typeof obj.detail === 'string') return obj.detail;
+    if (typeof obj.message === 'string') return obj.message;
+    return JSON.stringify(error);
   }
+  return 'Unknown error';
 };
 
 const App: React.FC = () => {
@@ -64,43 +24,71 @@ const App: React.FC = () => {
   const [showRecording, setShowRecording] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisData | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Handle saving the bird
   const handleSave = () => {
     setAnalysisResult(null);
     setShowRecording(false);
+    setError(null);
   };
 
   // Handle recording finish
   const handleRecordingFinish = async (audioBlob: Blob) => {
     setIsAnalyzing(true);
     setShowRecording(false);
+    setError(null);
 
     try {
-      // Attempt to call the real API
+      // Call the backend API at port 3001
       const response = await analyzeAudio(audioBlob);
+      console.log('[App] API Response:', response);
+      console.log('[App] Response success:', response.success);
+      console.log('[App] Response data:', response.data);
+      console.log('[App] Response error:', response.error);
+
       if (response.success) {
+        console.log('[App] Setting analysisResult:', response.data);
+        console.log('[App] Detections:', response.data?.detections);
+        console.log('[App] Detection count:', response.data?.detections?.length);
         setAnalysisResult(response.data);
       } else {
-        throw new Error(response.error || "Unknown error");
+        throw new Error(getErrorMessage(response.error) || "分析失败");
       }
-    } catch (error) {
-      console.warn("API Connection failed, using Mock Data for preview:", error);
-      // FALLBACK: If API fails (e.g. no local backend), use mock data to show the UI
-      // Simulate network delay
-      setTimeout(() => {
-        setAnalysisResult(MOCK_DATA);
-        setIsAnalyzing(false);
-      }, 1500);
-      return; // Return early so we don't double set isAnalyzing
+    } catch (err) {
+      console.error("Analysis failed:", err);
+      setError(err instanceof Error ? err.message : "网络错误，请确保后端服务已启动");
+    } finally {
+      setIsAnalyzing(false);
     }
-    
-    setIsAnalyzing(false);
   };
 
   // Main Render Logic
   const renderContent = () => {
-    // Priority 1: Show Loading
+    // Priority 1: Show Error
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-[#f6f8f6] px-6 text-center">
+          <div className="w-16 h-16 mb-6 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-[#111813] mb-2">分析失败</h2>
+          <p className="text-gray-500 text-sm mb-6">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+            }}
+            className="px-6 py-2 bg-[#2bee5b] text-white rounded-full font-medium"
+          >
+            返回首页
+          </button>
+        </div>
+      );
+    }
+
+    // Priority 2: Show Loading
     if (isAnalyzing) {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-[#f6f8f6] px-6 text-center">
@@ -117,7 +105,7 @@ const App: React.FC = () => {
       );
     }
 
-    // Priority 2: Show Results if data exists
+    // Priority 3: Show Results if data exists
     if (analysisResult) {
       return (
         <ResultsScreen 
@@ -156,7 +144,7 @@ const App: React.FC = () => {
       )}
 
       {/* Navigation (Only show if not in result or recording/analyzing flow) */}
-      {!analysisResult && !isAnalyzing && !showRecording && (
+      {!analysisResult && !isAnalyzing && !showRecording && !error && (
         <NavBar activeTab={currentTab} onTabChange={setCurrentTab} />
       )}
     </div>

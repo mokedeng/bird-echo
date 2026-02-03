@@ -26,23 +26,20 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
+      // 测试模式：预加载 cuckoo.wav 文件
+      console.log('[Recording] Test mode: preloading cuckoo.wav');
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
+      const response = await fetch('http://localhost:3001/server/cuckoo.wav');
+      if (!response.ok) {
+        throw new Error('Failed to fetch cuckoo.wav');
+      }
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/wav' });
-        onFinish(blob);
-      };
+      const blob = await response.blob();
+      console.log('[Recording] Test audio blob loaded:', blob.type, blob.size, 'bytes');
 
-      mediaRecorder.start();
+      // 保存 blob 供停止时使用
+      (mediaRecorderRef as any).testBlob = blob;
+
       setIsRecording(true);
 
       timerRef.current = window.setInterval(() => {
@@ -50,17 +47,24 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
       }, 1000);
 
     } catch (err) {
-      console.error("Error accessing microphone:", err);
-      alert("Could not access microphone. Please allow permissions.");
+      console.error("Error:", err);
+      alert("Error: " + err.message);
       onClose();
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (isRecording) {
       setIsRecording(false);
-      stopMediaRecorder(); // clean up stream
+
+      // 测试模式：使用预加载的 cuckoo.wav
+      const testBlob = (mediaRecorderRef as any).testBlob;
+      if (testBlob) {
+        console.log('[Recording] Stop: using test audio file');
+        onFinish(testBlob);
+      }
+
+      stopMediaRecorder(); // clean up
     }
   };
 

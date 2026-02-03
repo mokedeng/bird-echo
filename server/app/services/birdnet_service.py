@@ -40,6 +40,9 @@ class BirdNetService:
                 "--rtype", "csv"
             ]
 
+            logger.info(f"BirdNET command: {' '.join(cmd)}")
+            logger.info(f"Output directory: {output_dir}")
+
             # 执行命令
             result = subprocess.run(
                 cmd,
@@ -49,9 +52,14 @@ class BirdNetService:
                 check=True
             )
 
-            logger.debug(f"BirdNET stdout: {result.stdout}")
+            logger.info(f"BirdNET return code: {result.returncode}")
+            logger.info(f"BirdNET stdout: {result.stdout}")
             if result.stderr:
                 logger.warning(f"BirdNET stderr: {result.stderr}")
+
+            # 列出输出目录中的所有文件
+            output_files = list(output_dir.glob("*"))
+            logger.info(f"Output directory contents: {[str(f.name) for f in output_files]}")
 
             # 查找并解析 results.csv
             results_file = self._find_results_file(output_dir)
@@ -91,12 +99,15 @@ class BirdNetService:
         Raises:
             FileNotFoundError: 如果找不到 results.csv
         """
-        results_files = list(output_dir.glob("*results.csv"))
+        # BirdNET 输出文件名格式: {输入文件名}.csv
+        # 例如: recording.wav.csv
+        csv_files = list(output_dir.glob("*.csv"))
 
-        if not results_files:
-            raise FileNotFoundError("results.csv not found in output directory")
+        if not csv_files:
+            raise FileNotFoundError(f"No CSV files found in output directory: {output_dir}")
 
-        return results_files[0]
+        logger.info(f"Found CSV files: {[f.name for f in csv_files]}")
+        return csv_files[0]
 
 
 # 全局服务实例

@@ -1,8 +1,9 @@
 import logging
 import contextlib
+from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from . import config
 from .routes.analyze import router as analyze_router
 from .utils.temp_cleaner import cleaner
@@ -65,10 +66,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred"
-            }
+            "error": str(exc)
         }
     )
 
@@ -82,3 +80,15 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs"
     }
+
+
+@app.get("/server/cuckoo.wav")
+async def get_test_audio():
+    """提供测试音频文件"""
+    file_path = config.BASE_DIR / "cuckoo.wav"
+    if not file_path.exists():
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Test audio file not found"}
+        )
+    return FileResponse(file_path, media_type="audio/wav")

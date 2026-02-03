@@ -33,16 +33,13 @@ async def analyze_audio(audio: UploadFile = File(...)):
         content_type = audio.content_type or ""
 
         # 允许的扩展名
-        allowed_exts = {".wav", ".mp3", ".flac", ".wave"}
+        allowed_exts = {".wav", ".mp3", ".flac", ".wave", ".webm", ".ogg"}
 
         # 验证：content-type 在允许列表中 或 扩展名在允许列表中
         if content_type not in config.ALLOWED_FORMATS and file_ext not in allowed_exts:
             raise HTTPException(
                 status_code=400,
-                detail={
-                    "code": "INVALID_FILE_FORMAT",
-                    "message": f"Unsupported audio format. Supported: {', '.join(config.ALLOWED_FORMATS)}"
-                }
+                detail=f"不支持的音频格式。支持的格式: {', '.join(config.ALLOWED_FORMATS)}"
             )
 
         # 2. 保存上传的文件
@@ -89,10 +86,7 @@ async def analyze_audio(audio: UploadFile = File(...)):
 
         raise HTTPException(
             status_code=500,
-            detail={
-                "code": "ANALYSIS_FAILED",
-                "message": str(e)
-            }
+            detail=str(e)
         )
 
 

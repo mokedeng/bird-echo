@@ -16,41 +16,62 @@ const parseTime = (timeStr: string | number): number => {
   if (parts.length === 2) {
     return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
   }
-  return parseFloat(timeStr);
+  const parsed = parseFloat(timeStr);
+  console.log('[parseTime] Parsed time:', timeStr, '->', parsed);
+  if (isNaN(parsed)) {
+    console.error('[parseTime] NaN result for:', timeStr);
+    return 0;
+  }
+  return parsed;
 };
 
 export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSave }) => {
-  // Use a real high-quality Wikipedia image of a Common Cuckoo as default for the Mock/Preview state
-  const [topMatchImage, setTopMatchImage] = useState<string | null>(
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Cuculus_canorus_1_%28Martin_Mechenich%29.jpg/800px-Cuculus_canorus_1_%28Martin_Mechenich%29.jpg"
-  );
   const [isSaved, setIsSaved] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [topMatchImage, setTopMatchImage] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  // Debug log for received data
+  console.log('[ResultsScreen] Received data:', data);
+  console.log('[ResultsScreen] Detections:', data.detections);
+  console.log('[ResultsScreen] Detection count:', data.detections.length);
+  console.log('[ResultsScreen] Summary:', data.summary);
 
   // Find the detection with highest confidence
   const topMatch = useMemo(() => {
-    if (!data.detections.length) return null;
-    return data.detections.reduce((prev, current) => 
+    console.log('[ResultsScreen] Calculating topMatch...');
+    if (!data.detections.length) {
+      console.log('[ResultsScreen] No detections, returning null');
+      return null;
+    }
+    const result = data.detections.reduce((prev, current) =>
       (prev.confidence > current.confidence) ? prev : current
     );
+    console.log('[ResultsScreen] Top match:', result);
+    return result;
   }, [data]);
 
   const distinctCalls = data.detections.length;
   const totalDurationSecs = parseTime(data.summary.audioDuration);
 
+  console.log('[ResultsScreen] Distinct calls:', distinctCalls);
+  console.log('[ResultsScreen] Total duration secs:', totalDurationSecs);
+
   // Generate waveform bars that align with detections
   // Bars have higher amplitude where there is a detection
   const waveformBars = useMemo(() => {
     const barCount = 60;
+    // Prevent division by zero
+    const duration = totalDurationSecs > 0 ? totalDurationSecs : 1;
     return Array.from({ length: barCount }).map((_, i) => {
-      const time = (i / barCount) * totalDurationSecs;
+      const time = (i / barCount) * duration;
       // Check if this time slice falls within any detection
       const isDetected = data.detections.some(d => {
          const start = parseTime(d.startTime);
          const end = parseTime(d.endTime);
          return time >= start && time <= end;
       });
-      
+
       // High amplitude for detections, low for silence
       if (isDetected) {
          return 0.5 + Math.random() * 0.5; // 0.5 - 1.0 height
@@ -60,11 +81,21 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
     });
   }, [data, totalDurationSecs]);
 
+  // Fetch bird image from Wikipedia
   useEffect(() => {
     if (topMatch) {
-      // Try to fetch specific image, fallback to the default Cuckoo image if network fails in preview
+      setImageLoading(true);
       fetchBirdImage(topMatch.scientificName).then(url => {
-        if (url) setTopMatchImage(url);
+        if (url) {
+          setTopMatchImage(url);
+          console.log('[Results] Image loaded:', url);
+        } else {
+          console.log('[Results] No image found for:', topMatch.scientificName);
+        }
+        setImageLoading(false);
+      }).catch(err => {
+        console.error('[Results] Failed to fetch image:', err);
+        setImageLoading(false);
       });
     }
   }, [topMatch]);
@@ -143,9 +174,11 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
             {data.detections.map((d, i) => {
                  const start = parseTime(d.startTime);
                  const end = parseTime(d.endTime);
-                 const left = (start / totalDurationSecs) * 100;
-                 const width = ((end - start) / totalDurationSecs) * 100;
-                 
+                 // Prevent division by zero
+                 const duration = totalDurationSecs > 0 ? totalDurationSecs : 1;
+                 const left = (start / duration) * 100;
+                 const width = ((end - start) / duration) * 100;
+
                  // Confidence Heatmap Logic:
                  // Extreme contrast for 98-100% range.
                  // 0.98 -> 0.4 opacity
@@ -186,9 +219,11 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
             {/* Dynamic Ticks based on detections */}
             {data.detections.map((d, i) => {
               const start = parseTime(d.startTime);
-              const left = (start / totalDurationSecs) * 100;
+              // Prevent division by zero
+              const duration = totalDurationSecs > 0 ? totalDurationSecs : 1;
+              const left = (start / duration) * 100;
               return (
-                <span 
+                <span
                   key={i}
                   className="absolute text-[10px] opacity-40 font-medium whitespace-nowrap"
                   style={{ left: `${left}%`, transform: 'translateX(-50%)' }}
@@ -212,11 +247,25 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
           <h2 className="text-[22px] font-bold leading-tight tracking-tight mb-4">Top Match</h2>
           <div className="flex flex-col items-stretch justify-start rounded-2xl shadow-xl bg-white overflow-hidden border border-gray-100">
             {/* Image */}
-            <div 
-              className="w-full bg-center bg-no-repeat aspect-[4/3] bg-cover relative" 
-              style={{ backgroundImage: `url("${topMatchImage}")` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+            <div className="w-full bg-center bg-no-repeat aspect-[4/3] bg-cover relative bg-gray-100 flex items-center justify-center overflow-hidden">
+              {topMatchImage ? (
+                <img
+                  src={topMatchImage}
+                  alt={topMatch.commonName}
+                  className="w-full h-full object-cover"
+                />
+              ) : imageLoading ? (
+                <div className="text-center">
+                  <div className="animate-spin size-8 border-3 border-gray-300 border-t-[#2bee5b] rounded-full mx-auto mb-2"></div>
+                  <p className="text-sm text-gray-400">Loading...</p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <Icons.Image size={48} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-gray-400">No image available</p>
+                  <p className="text-xs text-gray-300">{topMatch.scientificName}</p>
+                </div>
+              )}
               <div className="absolute top-4 left-4 bg-[#2bee5b] text-[#102215] text-[10px] font-black uppercase tracking-[0.15em] px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg">
                 <Icons.BadgeCheck size={14} fill="black" className="text-[#2bee5b]" />
                 <span className="ml-1">High Confidence</span>

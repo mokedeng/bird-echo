@@ -53,18 +53,34 @@ def parse_results_csv(file_path: Path) -> List[Detection]:
         raise
 
 
-def _format_time(seconds: str) -> str:
+def _format_time(time_value: str) -> str:
     """
-    将秒数转换为时间格式 (MM:SS)
+    将时间值转换为统一的时间格式 (MM:SS)
+
+    BirdNET 可能输出：
+    - 纯秒数: "10.5" -> "0:10"
+    - MM:SS 格式: "0:10" -> "0:10"
+    - HH:MM:SS 格式: "00:00:10" -> "0:10"
 
     Args:
-        seconds: 秒数字符串
+        time_value: 时间值字符串
 
     Returns:
-        格式化后的时间字符串
+        格式化后的时间字符串 (MM:SS)
     """
     try:
-        secs = float(seconds)
+        # 如果包含冒号，说明已经是时间格式
+        if ':' in str(time_value):
+            parts = str(time_value).split(':')
+            # HH:MM:SS 或 MM:SS
+            if len(parts) >= 2:
+                minutes = int(parts[-2])  # 倒数第二部分是分钟
+                seconds = int(float(parts[-1]))  # 最后一部分是秒
+                return f"{minutes}:{seconds:02d}"
+            return time_value
+
+        # 否则当作秒数处理
+        secs = float(time_value)
         minutes = int(secs // 60)
         remaining_secs = int(secs % 60)
         return f"{minutes}:{remaining_secs:02d}"
