@@ -10,7 +10,7 @@ const BIRD_IMAGES = [
   "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Erithacus_rubecula_with_cocked_head.jpg/100px-Erithacus_rubecula_with_cocked_head.jpg",
   "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Blue_Jay-27527.jpg/100px-Blue_Jay-27527.jpg",
   "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/100px-House_Sparrow_mar08.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Cardinalis_cardinalis_NBII.jpg/100px-Cardinalis_cardinalis_NBII.jpg"
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Carduelis_carduelis_close_up.jpg/100px-Carduelis_carduelis_close_up.jpg"
 ];
 
 const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, image }) => {
@@ -20,8 +20,14 @@ const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, imag
   useEffect(() => {
     const img = new Image();
     img.src = image;
-    img.onload = () => setImageLoaded(true);
-    img.onerror = () => setImageError(true);
+    img.onload = () => {
+      console.log('[RecentDiscovery] Image loaded:', image);
+      setImageLoaded(true);
+    };
+    img.onerror = () => {
+      console.error('[RecentDiscovery] Image failed to load:', image);
+      setImageError(true);
+    };
   }, [image]);
 
   return (
@@ -42,6 +48,7 @@ const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, imag
               src={image}
               alt={name}
               className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              style={{ objectPosition: 'center' }}
               onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
             />
@@ -116,8 +123,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
             image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/100px-House_Sparrow_mar08.jpg"
           />
           <RecentDiscovery
-            name="Cardinal"
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Cardinalis_cardinalis_NBII.jpg/100px-Cardinalis_cardinalis_NBII.jpg"
+            name="Goldfinch"
+            image="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Carduelis_carduelis_close_up.jpg/100px-Carduelis_carduelis_close_up.jpg"
           />
         </div>
       </div>
