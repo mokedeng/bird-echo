@@ -87,13 +87,15 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 - `currentTab`: "home" | "library" | "profile"
 - `showRecording`: boolean
 - `analysisResult`: AnalysisData | null
+- `audioBlob`: Blob | null - 保存录音用于结果页面回放
 - `isAnalyzing`: boolean
 - `error`: string | null
 
 **导航**: 三个页面，由 `App.tsx` 条件渲染控制（无路由库，纯状态驱动）:
 - `HomeScreen.tsx` - 主页，带录制按钮
 - `RecordingScreen.tsx` - 音频录制界面，使用原生 MediaRecorder API
-- `ResultsScreen.tsx` - 显示检测结果，客户端从 Wikipedia 获取鸟类图片
+  - Cancel 按钮使用 `isCancellingRef` 防止触发 onFinish 回调
+- `ResultsScreen.tsx` - 显示检测结果，支持音频回放，客户端从 Wikipedia 获取鸟类图片
 
 **渲染优先级** (`App.tsx` 的 `renderContent()` 函数):
 1. 错误状态 > 2. 加载状态 > 3. 结果页 > 4. 标签页导航
@@ -238,3 +240,10 @@ opacity = Math.max(0.4, (confidence - 0.98) * 50)
 - `HomeScreen.tsx`: CSS 渐变 `bg-gradient-to-br from-green-50 to-emerald-100`
 - `RecordingScreen.tsx`: CSS 渐变 `bg-gradient-to-br from-green-100 via-green-50 to-emerald-100`
 - 避免使用外部背景图片（Unsplash 等），防止加载延迟和颜色突变
+
+### 音频回放
+`ResultsScreen.tsx` 实现音频播放/暂停功能：
+- 使用 HTML Audio API 播放录音 Blob
+- 通过 `URL.createObjectURL()` 创建音频 URL
+- 播放按钮显示 Play/Pause 图标切换
+- 音频结束时自动重置播放状态

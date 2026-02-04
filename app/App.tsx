@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState('home');
   const [showRecording, setShowRecording] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisData | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +39,7 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     setShowRecording(false);
     setError(null);
+    setAudioBlob(audioBlob);
 
     try {
       const response = await analyzeAudio(audioBlob);
@@ -99,10 +101,12 @@ const App: React.FC = () => {
     // Priority 3: Show Results if data exists
     if (analysisResult) {
       return (
-        <ResultsScreen 
-          data={analysisResult} 
+        <ResultsScreen
+          data={analysisResult}
+          audioBlob={audioBlob}
           onBack={() => {
             setAnalysisResult(null);
+            setAudioBlob(null);
             setIsAnalyzing(false);
           }}
           onSave={handleSave}

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useMediaRecorder } from '../hooks/useMediaRecorder';
 import { Icons } from '../components/Icons';
 import { Waveform } from '../components/Waveform';
@@ -9,10 +9,16 @@ interface RecordingScreenProps {
 }
 
 export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFinish }) => {
+  // 用于标记是否正在取消（不触发 onFinish）
+  const isCancellingRef = useRef(false);
+
   // 使用自定义录音 Hook
   const { isRecording, recordingTime, start, stop } = useMediaRecorder({
     onStop: (blob) => {
-      onFinish(blob);
+      // 只有在非取消状态下才触发 onFinish
+      if (!isCancellingRef.current) {
+        onFinish(blob);
+      }
     },
     onError: (error) => {
       console.error('[RecordingScreen] Recording error:', error);
@@ -23,6 +29,8 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
 
   // 组件挂载时自动开始录音
   useEffect(() => {
+    // 重置取消标志
+    isCancellingRef.current = false;
     start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -34,6 +42,7 @@ export const RecordingScreen: React.FC<RecordingScreenProps> = ({ onClose, onFin
 
   // 处理关闭（取消录音）
   const handleClose = () => {
+    isCancellingRef.current = true;
     if (isRecording) {
       stop().then(() => {
         onClose();

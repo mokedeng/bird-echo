@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { AnalysisData } from '../types';
 import { Icons } from '../components/Icons';
 import { fetchBirdImage } from '../services/api';
 
 interface ResultsScreenProps {
   data: AnalysisData;
+  audioBlob: Blob | null;
   onBack: () => void;
   onSave: () => void;
 }
@@ -24,11 +25,13 @@ const parseTime = (timeStr: string | number): number => {
   return parsed;
 };
 
-export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSave }) => {
+export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, audioBlob, onBack, onSave }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [topMatchImage, setTopMatchImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Find the detection with highest confidence
   const topMatch = useMemo(() => {
@@ -86,7 +89,27 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
     setIsSaved(true);
     setTimeout(() => {
       onSave();
-    }, 1500); 
+    }, 1500);
+  };
+
+  // Handle audio play/pause
+  const handlePlayPause = () => {
+    if (!audioBlob) return;
+
+    if (!audioRef.current) {
+      // Create audio element on first play
+      const audioUrl = URL.createObjectURL(audioBlob);
+      audioRef.current = new Audio(audioUrl);
+      audioRef.current.onended = () => setIsPlaying(false);
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
   };
 
   if (!topMatch) return null;
@@ -127,8 +150,16 @@ export const ResultsScreen: React.FC<ResultsScreenProps> = ({ data, onBack, onSa
                 <p className="text-xs opacity-60 mt-1">Duration: {data.summary.audioDuration}</p>
               </div>
             </div>
-            <button className="size-10 rounded-full bg-[#2bee5b] flex items-center justify-center text-[#102215] shadow-lg shadow-[#2bee5b]/20">
-              <Icons.Play size={20} fill="currentColor" className="ml-0.5" />
+            <button
+              onClick={handlePlayPause}
+              disabled={!audioBlob}
+              className={`size-10 rounded-full flex items-center justify-center text-[#102215] shadow-lg ${audioBlob ? 'bg-[#2bee5b] shadow-[#2bee5b]/20' : 'bg-gray-300 cursor-not-allowed'}`}
+            >
+              {isPlaying ? (
+                <Icons.Pause size={20} fill="currentColor" />
+              ) : (
+                <Icons.Play size={20} fill="currentColor" className="ml-0.5" />
+              )}
             </button>
           </div>
         </div>

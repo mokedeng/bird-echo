@@ -54,6 +54,7 @@ app/
 - currentTab: "home" | "library" | "profile"
 - showRecording: boolean
 - analysisResult: AnalysisData | null
+- audioBlob: Blob | null          // 保存录音用于回放
 - isAnalyzing: boolean
 - error: string | null
 ```
@@ -74,6 +75,17 @@ const { isRecording, recordingTime, start, stop } = useMediaRecorder({
     console.error(error);
   },
 });
+```
+
+**取消录音**: 点击 Cancel 按钮会正确取消录音并返回首页，不会触发 API 分析。
+
+### 音频回放
+
+在结果页面可以回放录音，通过 HTML Audio API 实现：
+
+```typescript
+// 播放/暂停按钮切换
+// 自动清理 Blob URL 防止内存泄漏
 ```
 
 ### 音频分析
