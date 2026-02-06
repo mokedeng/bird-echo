@@ -82,7 +82,7 @@ const RecentDiscovery: React.FC<{ name: string; scientificName: string }> = ({ n
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
   return (
-    <div className="relative flex flex-col h-full bg-gradient-to-b from-blue-50 to-[#f1f8e9]">
+    <div className="relative flex flex-col h-full overflow-y-auto bg-gradient-to-b from-blue-50 to-[#f1f8e9]">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pt-6">
         <button className="p-3 bg-white/40 backdrop-blur-md rounded-full hover:bg-white/60 transition">
@@ -95,7 +95,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
       </div>
 
       {/* Hero */}
-      <div className="flex-1 flex flex-col items-center justify-center -mt-10 px-6 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[500px] -mt-10 px-6 text-center">
         <h2 className="text-3xl md:text-4xl font-extrabold text-dark leading-tight max-w-[280px]">
           Listen to the birds around you
         </h2>
@@ -123,7 +123,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
       </div>
 
       {/* Recent Discoveries Sheet */}
-      <div className="bg-white/60 backdrop-blur-xl rounded-t-[2.5rem] pt-6 pb-24 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      <div className="bg-white/60 backdrop-blur-xl rounded-t-[2.5rem] pt-6 pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
         <div className="px-6 flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-dark">Recent Discoveries</h3>
           <button className="text-primary-dark text-sm font-semibold hover:underline">See all</button>

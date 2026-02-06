@@ -61,7 +61,7 @@ const App: React.FC = () => {
     // Priority 1: Show Error
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-screen bg-[#f6f8f6] px-6 text-center">
+        <div className="flex flex-col items-center justify-center h-full bg-[#f6f8f6] px-6 text-center">
           <div className="w-16 h-16 mb-6 rounded-full bg-red-100 flex items-center justify-center">
             <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -84,7 +84,7 @@ const App: React.FC = () => {
     // Priority 2: Show Loading
     if (isAnalyzing) {
       return (
-        <div className="flex flex-col items-center justify-center h-screen bg-[#f6f8f6] px-6 text-center">
+        <div className="flex flex-col items-center justify-center h-full bg-[#f6f8f6] px-6 text-center">
           <div className="relative w-20 h-20 mb-8">
             <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
             <div className="absolute inset-0 border-4 border-[#2bee5b] border-t-transparent rounded-full animate-spin"></div>
@@ -120,14 +120,14 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="flex items-center justify-center h-screen bg-[#f6f8f6] text-gray-400">
+      <div className="flex items-center justify-center h-full bg-[#f6f8f6] text-gray-400">
         Work in progress: {currentTab}
       </div>
     );
   };
 
   return (
-    <div className="h-screen w-full relative bg-[#f6f8f6]">
+    <div className="h-[100dvh] w-full relative bg-[#f6f8f6] overflow-hidden">
       {renderContent()}
       
       {/* Conditional Recording Overlay */}
@@ -139,9 +139,9 @@ const App: React.FC = () => {
       )}
 
       {/* Navigation (Only show if not in result or recording/analyzing flow) */}
-      {!analysisResult && !isAnalyzing && !showRecording && !error && (
+      {/* {!analysisResult && !isAnalyzing && !showRecording && !error && (
         <NavBar activeTab={currentTab} onTabChange={setCurrentTab} />
-      )}
+      )} */}
     </div>
   );
 };
