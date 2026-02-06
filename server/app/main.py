@@ -22,11 +22,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 配置 CORS
+# 配置 CORS - 允许所有源以便局域网访问
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[config.CORS_ORIGIN],
-    allow_credentials=True,
+    allow_origins=["*"],  # 允许所有源
+    allow_credentials=False,  # 通配符时必须为 False
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -43,6 +43,23 @@ async def startup_event():
 
     # 启动临时文件清理器
     cleaner.start()
+
+    # 预加载 BirdNET 模型（预热，让首次用户请求也很快）
+    logger.info("Preloading BirdNET model...")
+    try:
+        from .services.birdnet_service import birdnet_service
+        
+        # 检查是否有测试音频文件用于预热
+        test_audio = config.BASE_DIR / "cuckoo.wav"
+        if test_audio.exists():
+            logger.info(f"Using test audio file for model preload: {test_audio}")
+            birdnet_service.analyze_audio(str(test_audio), "preload")
+            logger.info("BirdNET model preloaded successfully")
+        else:
+            logger.warning("No test audio file found, skipping model preload (first request will be slower)")
+    except Exception as e:
+        logger.warning(f"Model preload failed (non-critical): {e}")
+        logger.info("Server will continue, but first analysis request may be slower")
 
     logger.info(f"Server will run on http://{config.HOST}:{config.PORT}")
     logger.info(f"API docs available at http://{config.HOST}:{config.PORT}/docs")

@@ -1,34 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../components/Icons';
+import { fetchBirdImage } from '../services/api';
 
 interface HomeScreenProps {
   onRecordStart: () => void;
 }
 
-// 使用更小的图片尺寸 (100px) 以加快加载速度
-const BIRD_IMAGES = [
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Erithacus_rubecula_with_cocked_head.jpg/100px-Erithacus_rubecula_with_cocked_head.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Blue_Jay-27527.jpg/100px-Blue_Jay-27527.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/100px-House_Sparrow_mar08.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Carduelis_carduelis_close_up.jpg/100px-Carduelis_carduelis_close_up.jpg"
+// 首页显示的鸟类及其学名映射
+const HOME_BIRDS = [
+  { name: "Robin", scientificName: "Erithacus rubecula" },
+  { name: "Blue Jay", scientificName: "Cyanocitta cristata" },
+  { name: "Sparrow", scientificName: "Passer domesticus" },
+  { name: "Goldfinch", scientificName: "Carduelis carduelis" }
 ];
 
-const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, image }) => {
+const RecentDiscovery: React.FC<{ name: string; scientificName: string }> = ({ name, scientificName }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
-    const img = new Image();
-    img.src = image;
-    img.onload = () => {
-      console.log('[RecentDiscovery] Image loaded:', image);
-      setImageLoaded(true);
-    };
-    img.onerror = () => {
-      console.error('[RecentDiscovery] Image failed to load:', image);
+    // 通过后端代理获取图片
+    fetchBirdImage(scientificName).then(url => {
+      if (url) {
+        setImageUrl(url);
+      } else {
+        setImageError(true);
+      }
+    }).catch(err => {
+      console.error('[RecentDiscovery] Failed to fetch image:', err);
       setImageError(true);
-    };
-  }, [image]);
+    });
+  }, [scientificName]);
+
+  useEffect(() => {
+    if (imageUrl) {
+      const img = new Image();
+      img.src = imageUrl;
+      img.onload = () => {
+        console.log('[RecentDiscovery] Image loaded:', imageUrl);
+        setImageLoaded(true);
+      };
+      img.onerror = () => {
+        console.error('[RecentDiscovery] Image failed to load:', imageUrl);
+        setImageError(true);
+      };
+    }
+  }, [imageUrl]);
 
   return (
     <div className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer hover:opacity-80 transition-opacity">
@@ -44,14 +62,16 @@ const RecentDiscovery: React.FC<{ name: string; image: string }> = ({ name, imag
               // Loading skeleton
               <div className="absolute inset-0 bg-gray-200 animate-pulse" />
             )}
-            <img
-              src={image}
-              alt={name}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-              style={{ objectPosition: 'center' }}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageError(true)}
-            />
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt={name}
+                className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                style={{ objectPosition: 'center' }}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)}
+              />
+            )}
           </>
         )}
       </div>
@@ -110,22 +130,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onRecordStart }) => {
         </div>
         
         <div className="flex overflow-x-auto no-scrollbar gap-6 px-6 pb-4">
-          <RecentDiscovery
-            name="Robin"
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Erithacus_rubecula_with_cocked_head.jpg/100px-Erithacus_rubecula_with_cocked_head.jpg"
-          />
-          <RecentDiscovery
-            name="Blue Jay"
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Blue_Jay-27527.jpg/100px-Blue_Jay-27527.jpg"
-          />
-          <RecentDiscovery
-            name="Sparrow"
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/House_Sparrow_mar08.jpg/100px-House_Sparrow_mar08.jpg"
-          />
-          <RecentDiscovery
-            name="Goldfinch"
-            image="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Carduelis_carduelis_close_up.jpg/100px-Carduelis_carduelis_close_up.jpg"
-          />
+          {HOME_BIRDS.map(bird => (
+            <RecentDiscovery
+              key={bird.scientificName}
+              name={bird.name}
+              scientificName={bird.scientificName}
+            />
+          ))}
         </div>
       </div>
     </div>

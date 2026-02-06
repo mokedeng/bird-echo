@@ -1,8 +1,8 @@
-import subprocess
 import logging
 import time
 from pathlib import Path
 from typing import List
+from birdnet_analyzer import analyze as birdnet_analyze
 from .. import config
 from ..models import Detection
 from ..utils.csv_parser import parse_results_csv
@@ -31,31 +31,14 @@ class BirdNetService:
         start_time = time.time()
 
         try:
-            # 构建 BirdNET CLI 命令
-            cmd = [
-                config.PYTHON_PATH,
-                "-m", "birdnet_analyzer.analyze",
+            # 直接调用 BirdNET Python API（模型在进程内缓存，后续调用只需 0.5-1 秒）
+            logger.info(f"Calling BirdNET Python API directly (output: {output_dir})")
+            
+            birdnet_analyze(
                 input_path,
-                "-o", str(output_dir),
-                "--rtype", "csv"
-            ]
-
-            logger.info(f"BirdNET command: {' '.join(cmd)}")
-            logger.info(f"Output directory: {output_dir}")
-
-            # 执行命令
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=config.ANALYSIS_TIMEOUT,
-                check=True
+                output=str(output_dir),
+                rtype="csv"
             )
-
-            logger.info(f"BirdNET return code: {result.returncode}")
-            logger.info(f"BirdNET stdout: {result.stdout}")
-            if result.stderr:
-                logger.warning(f"BirdNET stderr: {result.stderr}")
 
             # 列出输出目录中的所有文件
             output_files = list(output_dir.glob("*"))
@@ -74,17 +57,9 @@ class BirdNetService:
                 "session_id": session_id
             }
 
-        except subprocess.TimeoutExpired:
-            logger.error(f"BirdNET analysis timeout after {config.ANALYSIS_TIMEOUT}s")
-            raise Exception(f"Analysis timeout after {config.ANALYSIS_TIMEOUT} seconds")
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"BirdNET analysis failed with code {e.returncode}: {e.stderr}")
-            raise Exception(f"Analysis failed: {e.stderr}")
-
         except Exception as e:
             logger.error(f"BirdNET analysis error: {e}")
-            raise
+            raise Exception(f"Analysis failed: {str(e)}")
 
     def _find_results_file(self, output_dir: Path) -> Path:
         """

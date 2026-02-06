@@ -15,6 +15,7 @@ CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://localhost:3000")
 BASE_DIR = Path(__file__).parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 OUTPUT_DIR = BASE_DIR / "outputs"
+IMAGE_CACHE_DIR = BASE_DIR / "image_cache"  # 鸟类图片缓存目录
 
 # 确保 PYTHON_PATH 是绝对路径（相对于 BASE_DIR）
 _python_path_from_env = os.getenv("PYTHON_PATH", "python")
@@ -28,6 +29,7 @@ ANALYSIS_TIMEOUT = int(os.getenv("ANALYSIS_TIMEOUT", "300"))  # 5分钟
 # 确保目录存在
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
+IMAGE_CACHE_DIR.mkdir(exist_ok=True)
 
 # 文件清理配置
 CLEANUP_ENABLED = os.getenv("CLEANUP_ENABLED", "true").lower() == "true"

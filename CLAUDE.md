@@ -95,7 +95,7 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 - `HomeScreen.tsx` - 主页，带录制按钮
 - `RecordingScreen.tsx` - 音频录制界面，使用原生 MediaRecorder API
   - Cancel 按钮使用 `isCancellingRef` 防止触发 onFinish 回调
-- `ResultsScreen.tsx` - 显示检测结果，支持音频回放，客户端从 Wikipedia 获取鸟类图片
+- `ResultsScreen.tsx` - 显示检测结果，支持音频回放，通过后端代理获取鸟类图片
 
 **渲染优先级** (`App.tsx` 的 `renderContent()` 函数):
 1. 错误状态 > 2. 加载状态 > 3. 结果页 > 4. 标签页导航
@@ -108,13 +108,18 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 ### 后端结构
 
 **入口**: `app/main.py` - 注册路由、CORS、启动/关闭处理器
+- 启动时预加载 BirdNET 模型（首次用户请求也很快）
+- 启动临时文件清理器守护线程
 
 **路由处理器**: `app/routes/analyze.py`
 - POST `/api/analyze` - 接收 multipart form data 音频文件，自动转换为 WAV
 - GET `/api/health` - 健康检查
+- GET `/api/bird-image` - 后端代理，从 Wikipedia 获取鸟类图片并缓存
+- GET `/api/bird-image-file/{cache_key:path}` - 返回缓存的鸟类图片文件
 
 **服务层**: `app/services/birdnet_service.py`
-- 通过子进程调用 BirdNET-Analyzer: `python -m birdnet_analyzer.analyze`
+- 直接调用 `birdnet_analyzer.analyze()` Python API
+- 模型在进程内缓存，后续调用只需 0.5-1 秒
 - 返回从 CSV 解析的检测结果
 
 **工具类**:
@@ -124,13 +129,22 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 
 ### 数据流
 
+**音频分析流程**:
 1. 用户录制音频 → 原生 MediaRecorder 创建 Blob (WebM/MP4)
 2. 前端发送到 `POST /api/analyze` (multipart/form-data)
 3. 后端保存到 `uploads/{session_id}/`
 4. **后端使用 ffmpeg 转换为 WAV** (22050Hz, mono, 16-bit PCM)
-5. BirdNET-Analyzer 子进程写入 `outputs/{session_id}/`
+5. BirdNET-Analyzer 写入 `outputs/{session_id}/`
 6. 解析 CSV，返回响应
 7. 清理线程异步删除临时文件
+
+**鸟类图片获取流程**:
+1. 前端调用 `GET /api/bird-image?scientific_name={name}`
+2. 后端检查本地缓存 (`image_cache/{md5_hash}.*`)
+3. 缓存命中 → 返回 `/api/bird-image-file/{cache_key}{ext}`
+4. 缓存未命中 → 从 Wikipedia API 获取图片 URL
+5. 下载图片到本地缓存，MD5 哈希作为文件名
+6. 返回后端代理 URL
 
 ### 类型同步
 
@@ -151,16 +165,16 @@ interface AnalysisData {
 
 | 文件 | 用途 |
 |------|---------|
-| `app/App.tsx` | 根组件，所有状态，路由逻辑 |
+| `app/App.tsx` | 根组件，所有状态，路由逻辑，渲染优先级（错误>加载>结果>导航） |
 | `app/hooks/useMediaRecorder.ts` | 自定义录音 Hook |
 | `app/services/api.ts` | API 通信，类型定义 |
 | `app/screens/RecordingScreen.tsx` | 录音界面 |
-| `app/screens/ResultsScreen.tsx` | 结果展示，Wikipedia 图片 |
+| `app/screens/ResultsScreen.tsx` | 结果展示，通过后端代理获取鸟类图片 |
 | `server/app/main.py` | FastAPI 应用入口 |
 | `server/app/routes/analyze.py` | 分析 API，音频转换 |
-| `server/app/services/birdnet_service.py` | BirdNET 集成层 |
+| `server/app/services/birdnet_service.py` | BirdNET 集成层，直接调用 Python API |
 | `server/app/utils/audio_converter.py` | ffmpeg 音频转换 |
-| `server/app/config.py` | 环境配置 |
+| `server/app/config.py` | 环境配置，包含 IMAGE_CACHE_DIR 等路径 |
 
 ---
 
@@ -178,15 +192,37 @@ CLEANUP_INTERVAL=3600
 CLEANUP_MAX_AGE=86400
 ```
 
+## 开发代理配置
+
+前端开发服务器使用 Vite proxy 将 `/api` 请求代理到后端：
+- 前端地址: `http://localhost:3000`
+- 后端地址: `http://localhost:3001`
+- 配置文件: `app/vite.config.ts`
+- 代理规则: `/api` → `http://localhost:3001`
+
+### 移动端调试
+
+前端已配置 HTTPS 开发服务器，支持同 Wi-Fi 环境下的移动端调试：
+- 使用 `vite-plugin-mkcert` 自动生成受信任的 HTTPS 证书
+- `host: '0.0.0.0'` 允许局域网访问
+- 在手机浏览器访问电脑的局域网 IP（如 `https://192.168.1.100:3000`）
+- 后端 CORS 已配置 `allow_origins=["*"]` 允许所有源访问
+- 首次访问需在手机上信任自签名证书
+
 ---
 
 ## 使用的外部 API
 
-- **BirdNET-Analyzer**: 本地 Python 子进程 (非 HTTP API)
-- **Wikipedia REST API**: `ResultsScreen.tsx` 客户端调用，通过学名获取鸟类图片
-  - URL 模式: `https://en.wikipedia.org/api/rest_v1/page/summary/{scientificName}`
-  - 返回 `thumbnail.source` 作为图片 URL
-  - 优雅降级：无图片不影响结果显示
+- **BirdNET-Analyzer**: 本地 Python 包 (通过 `birdnet_analyzer.analyze()` 直接调用，非子进程)
+- **Wikipedia REST API**: 后端代理调用，通过学名获取鸟类图片
+  - 后端端点: `GET /api/bird-image?scientific_name={name}`
+  - 缓存端点: `GET /api/bird-image-file/{cache_key}{ext}`
+  - 图片缓存到本地 `image_cache/` 目录，使用 MD5 哈希作为缓存键
+  - 前端不直接访问 Wikipedia，避免跨域和限流问题
+- **Wikimedia Image Download**: 后端从 Wikimedia 下载图片到本地缓存
+  - **必需设置正确的 User-Agent**: `"BirdEcho/1.0 (https://github.com/smalldeng/bird-echo; birds@bird-echo.app)"`
+  - Wikimedia 要求标准 User-Agent 格式，否则返回 403
+  - 必须跟随重定向 (`follow_redirects=True`)
 - **ffmpeg**: 后端音频转换，WebM/MP4 → WAV
 
 ---
@@ -200,6 +236,15 @@ CLEANUP_MAX_AGE=86400
 3. **端口冲突**: 前端使用 3000，后端使用 3001 - 确保两个端口都可用
 
 4. **ffmpeg 依赖**: 后端音频转换需要 ffmpeg。未安装时会返回错误（不会降级处理原格式）
+
+5. **Wikimedia User-Agent**: Wikimedia Commons 要求设置符合格式的 User-Agent
+   - 格式: `ApplicationName/version (Contact_info)`
+   - 当前值: `BirdEcho/1.0 (https://github.com/smalldeng/bird-echo; birds@bird-echo.app)`
+   - 不符合格式会返回 HTTP 403
+
+6. **Image Cache**: 鸟类图片缓存在 `server/image_cache/` 目录，已添加到 `.gitignore`
+   - 使用 MD5 哈希作为缓存键名
+   - 文件名格式: `{md5_hash}.{ext}` (如 `8ac64591370c7c9d2034af97a481ab51.jpg`)
 
 ---
 
@@ -235,6 +280,7 @@ opacity = Math.max(0.4, (confidence - 0.98) * 50)
 - `HomeScreen.tsx`: 请求 `width=100` 的缩略图（~2KB，而非 ~50KB）
 - `ResultsScreen.tsx`: 请求 `width=440` 的标准尺寸
 - 所有图片加载都有骨架屏和错误回退（🐦 emoji）
+- **重要**: 图片通过后端代理获取，前端不直接访问 Wikipedia API
 
 ### 页面背景策略
 - `HomeScreen.tsx`: CSS 渐变 `bg-gradient-to-br from-green-50 to-emerald-100`
@@ -247,3 +293,10 @@ opacity = Math.max(0.4, (confidence - 0.98) * 50)
 - 通过 `URL.createObjectURL()` 创建音频 URL
 - 播放按钮显示 Play/Pause 图标切换
 - 音频结束时自动重置播放状态
+
+### 调试日志
+代码包含调试日志系统，写入到 `.cursor/debug.log`：
+- 前端 `api.ts`: 记录 API 调用入口、参数、响应状态
+- 后端 `routes/analyze.py`: 记录 Wikipedia API 请求、图片下载状态
+- 日志格式为 JSON，包含 timestamp、location、message、data 等字段
+- 用于调试图片加载问题和 API 调用流程

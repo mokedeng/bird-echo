@@ -8,13 +8,16 @@ logger = logging.getLogger(__name__)
 
 def convert_to_wav(input_file: Path, output_file: Path) -> Path:
     """
-    使用 ffmpeg 将音频文件转换为 WAV 格式
+    使用 ffmpeg 将音频文件转换为 WAV 格式（优化版本）
 
     转换参数:
     - 采样率: 22050 Hz (与 BirdNET 训练数据一致)
     - 声道: mono (单声道)
     - 编码: PCM 16-bit
-    - 静音修剪: 移除开头和结尾的静音 (解决 MediaRecorder 填充问题)
+    
+    优化说明:
+    - 移除了 silenceremove 过滤器以提升转换速度
+    - 简化命令参数，减少处理时间
 
     Args:
         input_file: 输入音频文件路径
@@ -48,28 +51,18 @@ def convert_to_wav(input_file: Path, output_file: Path) -> Path:
     # 确保输出目录存在
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # 构建 ffmpeg 命令
-    # 使用 silenceremove 过滤器移除开头和结尾的静音
-    # - period=1: 检测窗口为 1 秒
-    # - duration=0.5: 将连续 0.5 秒以上的静音视为静音段
-    # - start_periods=1: 开头至少有 1 个非静音段才开始
-    # - start_silence=1: 移除开头的静音
-    # - start_duration=0.5: 开头至少有 0.5 秒静音才修剪
-    # - stop_silence=1: 移除结尾的静音
-    # - stop_duration=0.5: 结尾至少有 0.5 秒静音才修剪
-    # - stop_threshold=-60dB: 低于 -60dB 视为静音
+    # 构建简化的 ffmpeg 命令（移除 silenceremove 过滤器以提升速度）
     cmd = [
         "ffmpeg",
         "-y",  # 覆盖输出文件
         "-i", str(input_file),  # 输入文件
-        "-af", "silenceremove=start_periods=1:start_duration=0.5:start_silence=1:stop_periods=1:stop_duration=0.5:stop_silence=1:stop_threshold=-60dB",
-        "-ar", "22050",  # 采样率 22050 Hz
+        "-ar", "22050",  # 采样率 22050 Hz (与 BirdNET 训练数据一致)
         "-ac", "1",  # 单声道
-        "-sample_fmt", "s16",  # PCM 16-bit
+        "-acodec", "pcm_s16le",  # PCM 16-bit 编码
         str(output_file),
     ]
 
-    logger.info(f"Converting {input_file.name} to WAV with silence removal")
+    logger.info(f"Converting {input_file.name} to WAV (optimized, no silence removal)")
 
     try:
         result = subprocess.run(

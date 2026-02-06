@@ -42,6 +42,8 @@ uploads/*
 !uploads/.gitkeep
 outputs/*
 !outputs/.gitkeep
+image_cache/*
+!image_cache/.gitkeep
 logs/*
 !logs/.gitkeep
 cuckoo.wav
