@@ -108,6 +108,15 @@ npm run dev
 
 **注意**: 无论哪种方案，手机端必须通过 **HTTPS** 访问才能正常唤起麦克风录音权限。
 
+### 云端部署 (零成本高可用方案)
+
+本项目支持将后端部署至 **Hugging Face Spaces (Docker)**，前端部署至 **Vercel/Netlify**，实现真正的零成本、高可用 AI 产品闭环。
+
+- **后端部署**：利用 Docker 封装 BirdNET-Analyzer 与 ffmpeg，部署至 Hugging Face。
+- **配置同步**：部署后将公网 API 地址填入前端环境变量即可。
+
+详细步骤与踩坑复盘请参考：[Hugging Face 部署实战指南](docs/huggingface-deployment-guide.md)
+
 ## 项目结构
 
 ```

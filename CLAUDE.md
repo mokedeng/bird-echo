@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-本文件为 Claude Code (claude.ai/code) 提供在此代码库中工作的指导。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目概述
 
@@ -57,7 +57,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 3001
 curl http://localhost:3001/api/health
 
 # 分析音频
-curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
+curl -X POST http://localhost:3001/api/analyze -F "audio=@docs/cuckoo.wav"
 ```
 
 ---
@@ -107,12 +107,14 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
   - 使用 `VITE_API_BASE_URL` 环境变量配置后端地址
   - 开发环境通过 Vite 代理访问 `/api`，回退到同源请求
   - 生产/移动端通过 `.env` 文件配置云端/隧道地址
+  - **normalizeUrl()**: 将后端返回的相对路径转换为绝对路径（云端部署必需）
 
 ### 后端结构
 
 **入口**: `app/main.py` - 注册路由、CORS、启动/关闭处理器
-- 启动时预加载 BirdNET 模型（首次用户请求也很快）
+- 启动时预加载 BirdNET 模型（使用 `wave` 模块生成静音音频预热）
 - 启动临时文件清理器守护线程
+- CORS 配置为允许所有源（`allow_origins=["*"]`）
 
 **路由处理器**: `app/routes/analyze.py`
 - POST `/api/analyze` - 接收 multipart form data 音频文件，自动转换为 WAV
@@ -147,7 +149,7 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 3. 缓存命中 → 返回 `/api/bird-image-file/{cache_key}{ext}`
 4. 缓存未命中 → 从 Wikipedia API 获取图片 URL
 5. 下载图片到本地缓存，MD5 哈希作为文件名
-6. 返回后端代理 URL
+6. 返回后端代理 URL（前端通过 `normalizeUrl()` 转换为绝对路径）
 
 ### 类型同步
 
@@ -170,16 +172,17 @@ interface AnalysisData {
 |------|---------|
 | `app/App.tsx` | 根组件，所有状态，路由逻辑，渲染优先级（错误>加载>结果>导航） |
 | `app/hooks/useMediaRecorder.ts` | 自定义录音 Hook |
-| `app/services/api.ts` | API 通信，类型定义，使用 `VITE_API_BASE_URL` |
+| `app/services/api.ts` | API 通信，类型定义，`normalizeUrl()`，使用 `VITE_API_BASE_URL` |
 | `app/.env` | 前端环境变量配置，指定后端地址 |
 | `app/.env.example` | 环境变量模板 |
 | `app/screens/RecordingScreen.tsx` | 录音界面 |
 | `app/screens/ResultsScreen.tsx` | 结果展示，通过后端代理获取鸟类图片 |
-| `server/app/main.py` | FastAPI 应用入口 |
+| `server/app/main.py` | FastAPI 应用入口，CORS 配置 |
 | `server/app/routes/analyze.py` | 分析 API，音频转换 |
 | `server/app/services/birdnet_service.py` | BirdNET 集成层，直接调用 Python API |
 | `server/app/utils/audio_converter.py` | ffmpeg 音频转换 |
 | `server/app/config.py` | 环境配置，包含 IMAGE_CACHE_DIR 等路径 |
+| `server/Dockerfile` | Hugging Face Spaces 部署配置 |
 
 ---
 
@@ -191,7 +194,7 @@ interface AnalysisData {
 # API 基础路径
 # 开发环境：留空使用 Vite 代理到 localhost:3001
 # 移动端调试：填入 Cloudflare Tunnel 地址 (e.g., https://xxx.trycloudflare.com/api)
-# 生产环境：由部署平台注入（如 Hugging Face）
+# 生产环境：填入 Hugging Face API 地址
 VITE_API_BASE_URL=
 ```
 
@@ -211,6 +214,26 @@ CLEANUP_ENABLED=true
 CLEANUP_INTERVAL=3600
 CLEANUP_MAX_AGE=86400
 ```
+
+---
+
+## 部署
+
+### 云端部署 (Hugging Face Spaces)
+
+后端可部署至 Hugging Face Spaces (Docker)，实现零成本高可用：
+
+**推送命令**（仅推送 server 子目录）:
+```bash
+git push hf $(git commit-tree $(git rev-parse HEAD:server) -m "Deploy API"):main --force
+```
+
+**注意事项**:
+- 使用 Docker SDK，免费版提供 2 vCPU + 16GB RAM
+- 需要配置 HF remote: `git remote add hf https://<token>@huggingface.co/spaces/<user>/<space>`
+- `Dockerfile` 中需要 `chmod -R 777` birdnet_analyzer 目录（权限问题）
+
+详细指南: [docs/huggingface-deployment-guide.md](docs/huggingface-deployment-guide.md)
 
 ## 开发代理配置
 
@@ -303,11 +326,19 @@ npx cloudflared tunnel --url https://127.0.0.1:3000 --no-tls-verify
 7. **环境变量配置**: `VITE_API_BASE_URL` 必须以 `VITE_` 开头，否则 Vite 无法识别
    - 开发环境留空时使用 Vite 代理
    - 移动端调试需填写完整的隧道地址（包含 `/api` 后缀）
+   - 云端部署需填写 Hugging Face API 地址
    - 填写错误会导致 API 请求失败
 
 8. **Cloudflare Tunnel 地址变更**: 每次重启隧道，地址都会变化
    - 需要同步更新 `app/.env` 中的 `VITE_API_BASE_URL`
    - Vite 会自动热重载，无需重启前端服务
+
+9. **Hugging Face 二进制文件限制**: Git 历史中包含二进制文件会被拒绝
+   - 解决方案：使用 `git commit-tree` + `--force` 强制推送当前快照
+   - 命令：`git push hf $(git commit-tree $(git rev-parse HEAD:server) -m "message"):main --force`
+
+10. **Docker 权限问题**: birdnet_analyzer 需要写入权限
+    - 在 Dockerfile 中添加：`RUN chmod -R 777 /usr/local/lib/python3.11/site-packages/birdnet_analyzer`
 
 ---
 
@@ -356,3 +387,9 @@ opacity = Math.max(0.4, (confidence - 0.98) * 50)
 - 通过 `URL.createObjectURL()` 创建音频 URL
 - 播放按钮显示 Play/Pause 图标切换
 - 音频结束时自动重置播放状态
+
+### URL 归一化
+`api.ts` 中的 `normalizeUrl()` 函数处理云端部署的路径问题：
+- 后端返回相对路径 `/api/bird-image-file/xxx.jpg`
+- 前端拼接为 `https://<backend-url>/api/bird-image-file/xxx.jpg`
+- 确保图片在不同域名下可正常加载
