@@ -39,6 +39,7 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     setShowRecording(false);
     setError(null);
+    setAnalysisResult(null); // 开始新请求前清空旧结果
     setAudioBlob(audioBlob);
 
     try {
@@ -50,6 +51,8 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Analysis failed:", err);
+      // 如果报错了，确保清空结果状态，避免回到首页突然弹窗
+      setAnalysisResult(null);
       setError(err instanceof Error ? err.message : "网络错误，请确保后端服务已启动");
     } finally {
       setIsAnalyzing(false);
