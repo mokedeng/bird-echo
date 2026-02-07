@@ -22,13 +22,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 配置 CORS - 允许所有源以便局域网访问
+# 配置 CORS - 允许所有源以便调试
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有源
-    allow_credentials=False,  # 通配符时必须为 False
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # 注册路由
