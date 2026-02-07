@@ -55,12 +55,16 @@ async def startup_event():
         
         # 如果文件不存在（比如在 Docker 容器中），动态生成一个 3 秒的静音文件
         if not test_audio.exists():
-            import subprocess
-            logger.info("Generating dummy audio for model preload...")
-            subprocess.run([
-                'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=r=22050:cl=mono',
-                '-t', '3', '-acodec', 'pcm_s16le', str(test_audio)
-            ], check=True, capture_output=True)
+            import wave
+            import struct
+            logger.info("Generating dummy audio for model preload using wave module...")
+            with wave.open(str(test_audio), 'wb') as f:
+                f.setnchannels(1)
+                f.setsampwidth(2)
+                f.setframerate(22050)
+                # 生成 3 秒静音数据
+                silence = struct.pack('<h', 0) * (22050 * 3)
+                f.writeframes(silence)
             
         if test_audio.exists():
             logger.info(f"Using audio file for model preload: {test_audio}")
