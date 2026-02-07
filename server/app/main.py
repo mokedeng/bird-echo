@@ -49,14 +49,26 @@ async def startup_event():
     try:
         from .services.birdnet_service import birdnet_service
         
-        # 检查是否有测试音频文件用于预热
-        test_audio = config.BASE_DIR / "cuckoo.wav"
+        # 预热音频路径
+        test_audio = config.BASE_DIR / "preload.wav"
+        
+        # 如果文件不存在（比如在 Docker 容器中），动态生成一个 3 秒的静音文件
+        if not test_audio.exists():
+            import subprocess
+            logger.info("Generating dummy audio for model preload...")
+            subprocess.run([
+                'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=r=22050:cl=mono',
+                '-t', '3', '-acodec', 'pcm_s16le', str(test_audio)
+            ], check=True, capture_output=True)
+            
         if test_audio.exists():
-            logger.info(f"Using test audio file for model preload: {test_audio}")
+            logger.info(f"Using audio file for model preload: {test_audio}")
             birdnet_service.analyze_audio(str(test_audio), "preload")
             logger.info("BirdNET model preloaded successfully")
-        else:
-            logger.warning("No test audio file found, skipping model preload (first request will be slower)")
+            
+            # 预热完可以删掉临时文件
+            if test_audio.name == "preload.wav":
+                test_audio.unlink()
     except Exception as e:
         logger.warning(f"Model preload failed (non-critical): {e}")
         logger.info("Server will continue, but first analysis request may be slower")
