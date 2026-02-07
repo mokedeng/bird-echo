@@ -1,45 +1,53 @@
 # 移动端预览与远程调试指南 (Cloudflare Tunnel 方案)
 
-本指南介绍如何利用 Cloudflare Tunnel 建立“双隧道系统”，实现将本地开发的 Bird Echo 项目映射到公网，供 iPhone 浏览器预览及远程好友试用。
+本指南介绍如何利用 Cloudflare Tunnel 建立隧道系统，实现将本地开发的 Bird Echo 项目映射到公网，供 iPhone 浏览器预览及远程好友试用。
 
-## 1. 核心架构图
+## 1. 核心架构图 (混合云开发模式)
 
 ```text
-[ 手机端 (iPhone/朋友) ] <-----> [ Cloudflare 全球网络 ] <-----> [ 你的本地电脑 (MBP) ]
-         |                                |                          |
-         | (1) 访问前端地址 ----------------> | (2) 映射至 :3000 <------ [ Vite 前端服务 ]
-         |                                |                          |
-         | (3) 发送分析请求 (音频) ----------> | (4) 映射至 :3001 <------ [ Python 后端服务 ]
-         |                                |                          |
-         | <--- (6) 返回识别结果 <---------- | (5) 模型推理 <---------- [ BirdNET 模型 ]
+[ 手机端 (iPhone/朋友) ] <---- (A) 加载界面 ----> [ Cloudflare 隧道 ] <----> [ 本地前端 (:3000) ]
+         |
+         | (B) 发送录音分析请求
+         v
+[ Hugging Face Spaces ] <--- (C) AI 推理 (BirdNET) --- [ Docker 容器 ]
+         |
+         +---- (D) 返回识别结果 ----> [ 手机端显示 ]
 ```
 
 ---
 
 ## 2. 准备工作
 
-确保本地两个服务已正常启动：
-- **后端**：在 `server` 目录运行 `python -m app.main` (监听端口: 3001)
-- **前端**：在 `app` 目录运行 `npm run dev` (监听端口: 3000, 且已开启 HTTPS)
+确保以下服务处于就绪状态：
+- **后端 (云端/可选)**：Hugging Face Space 状态为 `Running`。
+- **前端 (本地)**：在 `app` 目录运行 `npm run dev` (监听端口: 3000)。
+- **配置**：`app/.env` 中的 `VITE_API_BASE_URL` 指向对应的后端地址。
 
 ---
 
-## 3. 运行命令 (双隧道搭建)
+## 3. 运行命令 (根据场景选择)
 
-你需要开启两个独立的终端窗口，分别执行以下命令：
+### 场景一：混合云调试 (推荐)
+**后端已部署至 Hugging Face，本地只开发前端界面。**
 
-### A. 搭建后端隧道 (数据通道)
-用于接收录音数据并返回识别结果。
-```bash
-npx cloudflared tunnel --url http://localhost:3001
-```
+1. **启动前端隧道**：
+   ```bash
+   npx cloudflared tunnel --url http://localhost:3000
+   ```
+2. **配置地址**：将 `app/.env` 中的 `VITE_API_BASE_URL` 设置为你的 Hugging Face Space 地址。
 
-### B. 搭建前端隧道 (展示通道)
-用于在手机浏览器中加载网页界面。
-```bash
-# 注意：由于前端开启了 mkcert HTTPS，必须添加 --no-tls-verify
-npx cloudflared tunnel --url https://127.0.0.1:3000 --no-tls-verify
-```
+### 场景二：全本地联调 (前后端都在电脑运行)
+**需要在本地修改后端 Python 代码时使用。**
+
+1. **启动后端隧道** (Terminal 1)：
+   ```bash
+   npx cloudflared tunnel --url http://localhost:3001
+   ```
+2. **启动前端隧道** (Terminal 2)：
+   ```bash
+   npx cloudflared tunnel --url http://localhost:3000
+   ```
+3. **配置地址**：将 `app/.env` 中的 `VITE_API_BASE_URL` 设置为后端隧道生成的随机域名。
 
 ---
 
@@ -48,28 +56,20 @@ npx cloudflared tunnel --url https://127.0.0.1:3000 --no-tls-verify
 为了确保代码的安全性和灵活性，我们采用 `.env` 模式管理地址：
 
 1. **创建本地配置**：首次使用请复制模板文件 `cp app/.env.example app/.env`。
-2. **填入新域名**：将 Cloudflare 生成的后端地址填入 `VITE_API_BASE_URL`。
-3. **生效机制**：Vite 会自动热重载，无需重启前端服务。
+2. **填入 API 地址**：根据上述场景，填入对应的公网链接。
+3. **生效机制**：Vite 会自动监测 `.env` 的变化并触发热重载，无需重启前端服务。
 
 ---
 
-## 5. 关于本地 HTTPS (mkcert) 的架构权衡
+## 5. 关于 HTTPS 的说明
 
-项目中保留了 `vite-plugin-mkcert`，这在架构上属于“开发阶段的便利性权衡”：
-
-### 为什么保留？ (现状)
-- **离线调试能力**：在没有互联网的环境下，手机与电脑连入同一局域网，可通过 `https://<局域网-IP>:3000` 直接访问。由于是 HTTPS，iOS 依然允许调用麦克风。
-- **环境鲁棒性**：确保前端在任何环境下（本地、局域网、隧道）均运行在 Secure Context（安全上下文）中。
-
-### 为什么它是冗余的？ (未来移除原因)
-- **隧道自带 HTTPS**：Cloudflare 隧道会自动在边缘节点（Edge）终结 TLS，手机端看到的已经是合法证书，因此本地 Vite 其实跑在 `http` 即可。
-- **云原生兼容性**：在生产环境（如 Hugging Face）中，容器内部通常只运行 HTTP。移除 `mkcert` 后，开发环境与生产环境的容器结构将更加一致。
-
-**建议**：在进入生产部署（Production Build）或打包 Capacitor App 的最终阶段，可考虑移除 `mkcert` 以简化架构，并将隧道命令回归至标准的 `http` 映射。
+- **手机端**：必须通过 `https://xxx.trycloudflare.com` 访问。Cloudflare 自动处理了 TLS 终结，因此手机端能正常获取麦克风录音权限。
+- **本地端**：电脑浏览器访问 `http://localhost:3000` 即可（localhost 被浏览器视为安全上下文）。
+- **已移除 mkcert**：项目已移除本地 `mkcert` 插件。现在本地运行在纯 HTTP 模式下，这与生产环境（Docker 容器内部）的逻辑保持完全一致，架构更清爽。
 
 ---
 
 ## 6. 原理解析
 
-- **解耦请求**：通过环境变量读取配置，实现了代码逻辑与部署环境的解耦。
-- **HTTPS 兼容性**：解决了 iOS 对麦克风权限的硬性 HTTPS 要求。
+- **解耦请求**：通过环境变量读取配置，实现了代码逻辑与部署环境的解耦。这不仅方便了本地隧道调试，也完美契合未来在 Hugging Face 上的云原生部署。
+- **HTTPS 兼容性**：利用 Cloudflare 的合法证书解决了 iOS 对麦克风权限的强制要求。
