@@ -104,6 +104,9 @@ curl -X POST http://localhost:3001/api/analyze -F "audio=@server/cuckoo.wav"
 - `hooks/useMediaRecorder.ts` - 封装原生 MediaRecorder API，支持 WebM/MP4 格式
 
 **API 层**: `services/api.ts` - 单文件包含所有后端通信和 TypeScript 接口定义。
+  - 使用 `VITE_API_BASE_URL` 环境变量配置后端地址
+  - 开发环境通过 Vite 代理访问 `/api`，回退到同源请求
+  - 生产/移动端通过 `.env` 文件配置云端/隧道地址
 
 ### 后端结构
 
@@ -167,7 +170,9 @@ interface AnalysisData {
 |------|---------|
 | `app/App.tsx` | 根组件，所有状态，路由逻辑，渲染优先级（错误>加载>结果>导航） |
 | `app/hooks/useMediaRecorder.ts` | 自定义录音 Hook |
-| `app/services/api.ts` | API 通信，类型定义 |
+| `app/services/api.ts` | API 通信，类型定义，使用 `VITE_API_BASE_URL` |
+| `app/.env` | 前端环境变量配置，指定后端地址 |
+| `app/.env.example` | 环境变量模板 |
 | `app/screens/RecordingScreen.tsx` | 录音界面 |
 | `app/screens/ResultsScreen.tsx` | 结果展示，通过后端代理获取鸟类图片 |
 | `server/app/main.py` | FastAPI 应用入口 |
@@ -180,7 +185,22 @@ interface AnalysisData {
 
 ## 环境变量
 
-后端 `.env` (位于 `server/` 目录):
+### 前端 `.env` (位于 `app/` 目录)
+
+```bash
+# API 基础路径
+# 开发环境：留空使用 Vite 代理到 localhost:3001
+# 移动端调试：填入 Cloudflare Tunnel 地址 (e.g., https://xxx.trycloudflare.com/api)
+# 生产环境：由部署平台注入（如 Hugging Face）
+VITE_API_BASE_URL=
+```
+
+**配置说明**：
+- 变量名必须以 `VITE_` 开头，Vite 才能识别
+- 留空时回退到 `/api`，通过 Vite 代理访问本地后端
+- 填写完整 URL 时直接访问该地址（用于隧道/云端部署）
+
+### 后端 `.env` (位于 `server/` 目录)
 ```
 HOST=0.0.0.0
 PORT=3001
@@ -200,14 +220,48 @@ CLEANUP_MAX_AGE=86400
 - 配置文件: `app/vite.config.ts`
 - 代理规则: `/api` → `http://localhost:3001`
 
-### 移动端调试
+### 移动端调试（Cloudflare Tunnel 方案）
 
-前端已配置 HTTPS 开发服务器，支持同 Wi-Fi 环境下的移动端调试：
-- 使用 `vite-plugin-mkcert` 自动生成受信任的 HTTPS 证书
-- `host: '0.0.0.0'` 允许局域网访问
-- 在手机浏览器访问电脑的局域网 IP（如 `https://192.168.1.100:3000`）
-- 后端 CORS 已配置 `allow_origins=["*"]` 允许所有源访问
-- 首次访问需在手机上信任自签名证书
+使用 Cloudflare Tunnel 建立双隧道系统，支持跨网络访问和远程好友试用。
+
+**架构图**：
+```
+[ 手机端 ] <-----> [ Cloudflare 全球网络 ] <-----> [ 本地电脑 ]
+   |                                |                          |
+   | 访问前端隧道 ------------------> | 映射至 :3000 <---------- [ Vite 前端 ]
+   |                                |                          |
+   | 发送 API 请求 -----------------> | 映射至 :3001 <---------- [ Python 后端 ]
+   |                                |                          |
+   | <--- 返回识别结果 <------------- | 模型推理 <-------------- [ BirdNET ]
+```
+
+**快速启动**：
+
+```bash
+# 终端 1: 后端隧道
+npx cloudflared tunnel --url http://localhost:3001
+
+# 终端 2: 前端隧道（由于 Vite 使用 mkcert HTTPS，需要 --no-tls-verify）
+npx cloudflared tunnel --url https://127.0.0.1:3000 --no-tls-verify
+```
+
+**配置步骤**：
+1. 复制环境变量模板：`cp app/.env.example app/.env`
+2. 将后端隧道生成的地址填入 `VITE_API_BASE_URL`（如 `https://xxx.trycloudflare.com/api`）
+3. Vite 会自动热重载，无需重启
+4. 在手机浏览器访问前端隧道地址
+
+**注意事项**：
+- 隧道地址每次启动都会变化，需要更新 `.env` 文件
+- 前端隧道使用 `--no-tls-verify` 因为 Vite 使用自签名证书
+- Cloudflare 免费版无流量限制，适合个人开发调试
+
+### 局域网调试（备用方案）
+
+手机和电脑在同一 Wi-Fi 时，可直接访问局域网 IP：
+- 获取电脑 IP：`ipconfig getifaddr en0`（macOS）
+- 访问地址：`https://192.168.x.x:3000`
+- 首次访问需信任自签名证书
 
 ---
 
@@ -245,6 +299,15 @@ CLEANUP_MAX_AGE=86400
 6. **Image Cache**: 鸟类图片缓存在 `server/image_cache/` 目录，已添加到 `.gitignore`
    - 使用 MD5 哈希作为缓存键名
    - 文件名格式: `{md5_hash}.{ext}` (如 `8ac64591370c7c9d2034af97a481ab51.jpg`)
+
+7. **环境变量配置**: `VITE_API_BASE_URL` 必须以 `VITE_` 开头，否则 Vite 无法识别
+   - 开发环境留空时使用 Vite 代理
+   - 移动端调试需填写完整的隧道地址（包含 `/api` 后缀）
+   - 填写错误会导致 API 请求失败
+
+8. **Cloudflare Tunnel 地址变更**: 每次重启隧道，地址都会变化
+   - 需要同步更新 `app/.env` 中的 `VITE_API_BASE_URL`
+   - Vite 会自动热重载，无需重启前端服务
 
 ---
 
@@ -293,10 +356,3 @@ opacity = Math.max(0.4, (confidence - 0.98) * 50)
 - 通过 `URL.createObjectURL()` 创建音频 URL
 - 播放按钮显示 Play/Pause 图标切换
 - 音频结束时自动重置播放状态
-
-### 调试日志
-代码包含调试日志系统，写入到 `.cursor/debug.log`：
-- 前端 `api.ts`: 记录 API 调用入口、参数、响应状态
-- 后端 `routes/analyze.py`: 记录 Wikipedia API 请求、图片下载状态
-- 日志格式为 JSON，包含 timestamp、location、message、data 等字段
-- 用于调试图片加载问题和 API 调用流程
