@@ -243,48 +243,48 @@ git push hf $(git commit-tree $(git rev-parse HEAD:server) -m "Deploy API"):main
 - 配置文件: `app/vite.config.ts`
 - 代理规则: `/api` → `http://localhost:3001`
 
-### 移动端调试（Cloudflare Tunnel 方案）
+### 移动端调试（Cloudflare Tunnel 混合云方案）
 
-使用 Cloudflare Tunnel 建立双隧道系统，支持跨网络访问和远程好友试用。
+**场景一：混合云调试（推荐）**
+- 后端部署在 Hugging Face Spaces（云端）
+- 前端在本地开发，通过 Cloudflare Tunnel 暴露给手机
 
-**架构图**：
-```
-[ 手机端 ] <-----> [ Cloudflare 全球网络 ] <-----> [ 本地电脑 ]
-   |                                |                          |
-   | 访问前端隧道 ------------------> | 映射至 :3000 <---------- [ Vite 前端 ]
-   |                                |                          |
-   | 发送 API 请求 -----------------> | 映射至 :3001 <---------- [ Python 后端 ]
-   |                                |                          |
-   | <--- 返回识别结果 <------------- | 模型推理 <-------------- [ BirdNET ]
+```bash
+# 只需启动前端隧道
+npx cloudflared tunnel --url http://localhost:3000
 ```
 
-**快速启动**：
+配置 `app/.env` 中的 `VITE_API_BASE_URL` 指向 Hugging Face Space 地址。
+
+**场景二：全本地联调**
+- 前后端都在本地运行
 
 ```bash
 # 终端 1: 后端隧道
 npx cloudflared tunnel --url http://localhost:3001
 
-# 终端 2: 前端隧道（由于 Vite 使用 mkcert HTTPS，需要 --no-tls-verify）
-npx cloudflared tunnel --url https://127.0.0.1:3000 --no-tls-verify
+# 终端 2: 前端隧道
+npx cloudflared tunnel --url http://localhost:3000
 ```
 
-**配置步骤**：
-1. 复制环境变量模板：`cp app/.env.example app/.env`
-2. 将后端隧道生成的地址填入 `VITE_API_BASE_URL`（如 `https://xxx.trycloudflare.com/api`）
-3. Vite 会自动热重载，无需重启
-4. 在手机浏览器访问前端隧道地址
+配置 `app/.env` 中的 `VITE_API_BASE_URL` 指向后端隧道地址。
 
 **注意事项**：
 - 隧道地址每次启动都会变化，需要更新 `.env` 文件
-- 前端隧道使用 `--no-tls-verify` 因为 Vite 使用自签名证书
-- Cloudflare 免费版无流量限制，适合个人开发调试
+- Vite 会自动热重载 `.env` 变化
+- Cloudflare 免费版无流量限制
+
+**HTTPS 说明**：
+- 手机端必须通过 HTTPS 访问（iOS 麦克风权限要求）
+- Cloudflare Tunnel 自动提供合法证书
+- 本地开发使用纯 HTTP（localhost 被视为安全上下文）
 
 ### 局域网调试（备用方案）
 
 手机和电脑在同一 Wi-Fi 时，可直接访问局域网 IP：
 - 获取电脑 IP：`ipconfig getifaddr en0`（macOS）
-- 访问地址：`https://192.168.x.x:3000`
-- 首次访问需信任自签名证书
+- 访问地址：`http://192.168.x.x:3000`
+- 注意：iOS 可能无法使用麦克风（需要 HTTPS）
 
 ---
 
