@@ -22,6 +22,9 @@ COPY app/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# 修复 birdnet_analyzer 试图在 site-packages 写入 error_log.txt 的权限问题
+RUN chmod -R 777 /usr/local/lib/python3.11/site-packages/birdnet_analyzer
+
 # 3. 复制项目代码
 COPY . .
 
