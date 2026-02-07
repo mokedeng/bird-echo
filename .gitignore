@@ -52,6 +52,9 @@ checkpoints/
 *.mp3
 *.flac
 
+# Exception: keep example audio file in docs
+!docs/cuckoo.wav
+
 # Environment
 .env
 .env.local
